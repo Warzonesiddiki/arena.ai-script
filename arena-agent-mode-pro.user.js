@@ -4591,7 +4591,7 @@ const InsightsDashboard = (() => {
             EventBus.on('config:change', ({ key, value }) => ModuleRegistry.configChange(key, value));
 
 console.log(
-                 '%c⚡ Arena Agent Mode Pro v7.0 — Engine Refactored\n' +
+                 `%c⚡ Arena Agent Mode Pro v${SCRIPT_VERSION} — Bugfix Pass\n` +
                  '──────────────────────────────────────────────\n' +
                  'Ctrl+K → Command Palette   Ctrl+W → Workspace\n' +
                  'Ctrl+E → Export             Ctrl+A → Artifacts\n' +
