@@ -82,6 +82,37 @@
         return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
     }
 
+    /* ── SHARED MODAL BUILDER (eliminates ~8 duplicated modal templates) ── */
+    function buildModal(id, title, bodyHTML, options = {}) {
+        const existing = document.getElementById(id);
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = id;
+        modal.className = options.className || '';
+        modal.style.cssText = options.style || `position:fixed;inset:0;z-index:999995;display:flex;align-items:center;justify-content:center;font-family:var(--aamp-font);`;
+
+        modal.innerHTML = `
+            <div class="aamp-modal-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);"></div>
+            <div class="aamp-modal-panel" style="position:relative;background:var(--aamp-surface);border:1px solid var(--aamp-border);border-radius:16px;box-shadow:var(--aamp-shadow),var(--aamp-glow);max-width:90vw;max-height:85vh;width:${options.width || '640px'};overflow:hidden;display:flex;flex-direction:column;">
+                <div class="aamp-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--aamp-surface2);border-bottom:1px solid var(--aamp-border);flex-shrink:0;">
+                    <span style="font-size:16px;font-weight:700;color:var(--aamp-text);">${title}</span>
+                    <button class="aamp-modal-close" style="background:none;border:none;color:var(--aamp-text2);cursor:pointer;font-size:18px;">✕</button>
+                </div>
+                <div class="aamp-modal-body" style="flex:1;overflow-y:auto;padding:20px;">${bodyHTML}</div>
+                ${options.footer ? `<div class="aamp-modal-footer" style="padding:12px 20px;border-top:1px solid var(--aamp-border);background:var(--aamp-surface2);flex-shrink:0;">${options.footer}</div>` : ''}
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Close handlers
+        modal.querySelector('.aamp-modal-backdrop').addEventListener('click', () => modal.remove());
+        modal.querySelector('.aamp-modal-close').addEventListener('click', () => modal.remove());
+
+        return modal;
+    }
+
     /* ── DOWNLOAD FILE ─────────────────────────────────────────── */
     function downloadFile(filename, content, mimeType = 'text/plain') {
         const blob = new Blob([content], { type: mimeType });
@@ -794,7 +825,45 @@
     const { store: S } = State;
 
     // ============================================================
-    //  DOM OBSERVER & AGENT DETECTOR
+    //  SHARED TICK DISPATCHER (consolidates 8+ setInterval timers)
+    // ============================================================
+    const TickDispatcher = (() => {
+        const _ticks = new Map();
+        let _timer = null;
+        let _lastRun = Date.now();
+
+        function register(name, fn, intervalMs) {
+            _ticks.set(name, { fn, intervalMs, lastRun: 0 });
+        }
+
+        function unregister(name) {
+            _ticks.delete(name);
+        }
+
+        function start() {
+            if (_timer) return;
+            _timer = setInterval(() => {
+                const now = Date.now();
+                for (const [name, entry] of _ticks) {
+                    if (now - entry.lastRun >= entry.intervalMs) {
+                        entry.lastRun = now;
+                        try { entry.fn(); } catch (e) { warn(`TickDispatcher error on "${name}":`, e); }
+                    }
+                }
+            }, 1000);
+        }
+
+        function stop() {
+            if (_timer) { clearInterval(_timer); _timer = null; }
+        }
+
+        function list() { return Array.from(_ticks.keys()); }
+
+        return { register, unregister, start, stop, list };
+    })();
+
+    // ============================================================
+    //  DOM OBSERVER & AGENT DETECTOR (now the single source of truth)
     // ============================================================
     const DOMObserver = (() => {
         let _mainObserver = null, _routeObserver = null;
@@ -843,14 +912,19 @@ function detectAgentMode() {
         function observeMain() {
             _mainObserver = new MutationObserver((mutations) => {
                 let hasNewContent = false;
+                let lastAddedNode = null;
                 for (const m of mutations) {
                     for (const node of m.addedNodes) {
                         if (node.nodeType !== 1) continue;
                         hasNewContent = true;
+                        lastAddedNode = node;
                         analyzeAddedNode(node);
                     }
                 }
-                if (hasNewContent) EventBus.emit('dom:mutation');
+                if (hasNewContent) {
+                    // Emit with the newly added node so listeners can scope scans
+                    EventBus.emit('dom:mutation', { node: lastAddedNode });
+                }
             });
             _mainObserver.observe(document.body, { childList: true, subtree: true });
         }
@@ -926,7 +1000,7 @@ function detectAgentMode() {
 
         return { init, destroy, detectAgentMode, startSession };
     })();
-    ModuleRegistry.register('domObserver', { phase:0, init(){DOMObserver.init();}, destroy(){DOMObserver.destroy();}, deps:['state','eventBus'] });
+            ModuleRegistry.register('domObserver', { phase:0, init(){DOMObserver.init(); TickDispatcher.start();}, destroy(){DOMObserver.destroy(); TickDispatcher.stop();}, deps:['state','eventBus'] });
 
     // ============================================================
     //  THEME ENGINE
