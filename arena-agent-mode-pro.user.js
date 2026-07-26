@@ -2,7 +2,7 @@
 // @name         Arena Agent Mode Pro
 // @namespace    https://arena.ai/
 // @version      7.1.1
-// @description  v7.1 · Critical bugfix pass (infinite tool-call loop, duplicate init, dead modules) · ModuleRegistry Architecture · Phase-Based Boot · Error Isolation · Agent Mode Pro
+// @description  v7.2 · Performance (debounced DOM scans, consolidated observers, heap sampling) + UI/UX overhaul (Command Palette frecency, buildModal helper, real CSS classes) · ModuleRegistry Architecture · Phase-Based Boot · Error Isolation · Agent Mode Pro
 // @author       Arena Agent Mode Pro
 // @match        https://arena.ai/*
 // @match        https://*.arena.ai/*
@@ -18,8 +18,8 @@
     'use strict';
 
     const SCRIPT_ID      = 'aamp';
-    const SCRIPT_VERSION = '7.1.1';
-    const SCRIPT_NAME    = 'Arena Agent Mode Pro (v7.1 Bugfix Pass)';
+    const SCRIPT_VERSION = '7.2.0';
+    const SCRIPT_NAME    = 'Arena Agent Mode Pro (v7.2 Performance & UI Overhaul)';
 
     // ============================================================
     //  ███████╗██╗██╗  ██╗███████╗██████╗     ██╗   ██╗████████╗██╗██╗     ███████╗
@@ -4201,7 +4201,17 @@ const InsightsDashboard = (() => {
         function sanitize(html) { const d = document.createElement('div'); d.textContent = html; return d.innerHTML; }
         function escape(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
         function validateURL(url) { try { const u = new URL(url); return u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'mailto:'; } catch { return false; } }
-        function sanitizeAttributes(el) { if (!el) return; el.querySelectorAll('*').forEach(node => { Array.from(node.attributes).forEach(attr => { if (attr.name.startsWith('on') || attr.value.includes('javascript:')) node.removeAttribute(attr.name); }); }); }
+        function sanitizeAttributes(el) {
+            if (!el) return;
+            // PERFORMANCE: only scan newly added nodes when possible (called from debounced listeners)
+            const nodes = el.nodeType === 1 ? [el] : el.querySelectorAll('*');
+            nodes.forEach(node => {
+                if (node.nodeType !== 1) return;
+                Array.from(node.attributes).forEach(attr => {
+                    if (attr.name.startsWith('on') || attr.value.includes('javascript:')) node.removeAttribute(attr.name);
+                });
+            });
+        }
         function init() { log('🛡️ XSS Prevention'); }
         return { init, sanitize, escape, validateURL, sanitizeAttributes };
     })();
@@ -4313,7 +4323,12 @@ const InsightsDashboard = (() => {
         function init() {
             log('🛡️ Security Hardening');
             XSSPrevention.sanitizeAttributes(document.body);
-            EventBus.on('dom:mutation', () => XSSPrevention.sanitizeAttributes(document.body));
+            // PERFORMANCE: debounce full-DOM scans (same pattern as processAllCodeBlocks)
+            EventBus.on('dom:mutation', debounce((data) => {
+                // Scope to newly added node when available
+                const target = data && data.node ? data.node : document.body;
+                XSSPrevention.sanitizeAttributes(target);
+            }, 350));
         }
         function getPolicy() {
             return { csp: 'strict', sanitizeDOM: true, validateURLs: true, blockInlineScripts: true };
