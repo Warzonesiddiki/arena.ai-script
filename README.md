@@ -19,6 +19,7 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 - Hybrid `chrome.storage.local` + IndexedDB storage with LZ4-compressed large records, integrity checks, quota controls, and repairable indexing
 - A single scoped DOM observer that never falls back to `document.body`, centralized timer/observer ownership, bounded recovery fallbacks, structured correlation tracing, and mutation/heap performance budgets
 - Deterministic microdollar cost governance with hard per-workflow/per-agent reservation gates and projections
+- Grouped, verbosity-governed recovery notifications with native Chrome notification fallback
 - Build-artifact manifest validation before an extension is loaded in Chrome
 
 The legacy v7.2 userscript remains at `arena-agent-mode-pro.user.js` while its capabilities are ported in blueprint order. The next work item is **Phase 2B: Command Palette 2.0**; no multi-agent feature is enabled yet.
@@ -36,6 +37,7 @@ The implementation sequence and technical guardrails are documented in:
 - [Phase 1A & 1B Record](docs/PHASE-1A-1B-IMPLEMENTATION.md)
 - [Phase 1C–1E Record](docs/PHASE-1C-1E-IMPLEMENTATION.md)
 - [Phase 2A Side Panel Record](docs/PHASE-2A-IMPLEMENTATION.md)
+- [Phase 2C Notification Record](docs/PHASE-2C-IMPLEMENTATION.md)
 - [Phase 2E Cost Governance Record](docs/PHASE-2E-IMPLEMENTATION.md)
 - [Documentation Index](docs/BLUEPRINT-INDEX.md)
 

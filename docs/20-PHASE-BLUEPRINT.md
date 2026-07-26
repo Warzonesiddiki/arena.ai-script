@@ -79,8 +79,9 @@
 
 **Implementation status:**
 - **2A — Side Panel: Complete (2026-07-26).** The Side Panel presents bounded, signed-bridge runtime state, safe status indicators, manual refresh, and settings quick action using the central TickDispatcher.
+- **2C — Smart Notifications: Complete (2026-07-26).** Verbosity filtering, grouped history, and native `chrome.notifications` recovery fallback are active.
 - **2E — Cost Governance: Complete (2026-07-26).** A deterministic microdollar budget engine now hard-blocks over-budget per-workflow/per-agent reservations and emits projections/usage events.
-- **2B–2D: Planned.** See [`PHASE-2A-IMPLEMENTATION.md`](PHASE-2A-IMPLEMENTATION.md) and [`PHASE-2E-IMPLEMENTATION.md`](PHASE-2E-IMPLEMENTATION.md).
+- **2B and 2D: Planned.** See [`PHASE-2A-IMPLEMENTATION.md`](PHASE-2A-IMPLEMENTATION.md), [`PHASE-2C-IMPLEMENTATION.md`](PHASE-2C-IMPLEMENTATION.md), and [`PHASE-2E-IMPLEMENTATION.md`](PHASE-2E-IMPLEMENTATION.md).
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|

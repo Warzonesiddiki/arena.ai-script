@@ -5,6 +5,7 @@ import {
   isHandshakeRequest,
 } from '../bridge/protocol';
 import { Tracer } from '../observability/tracer';
+import { NotificationCenter } from '../notifications/notification-center';
 import { ErrorRecoveryManager } from '../reliability/recovery-manager';
 
 /**
@@ -20,10 +21,20 @@ const HEALTH_CHECK_MESSAGE = 'aamp:health-check';
 const RUNTIME_STATUS_MESSAGE = 'aamp:runtime-status';
 const runtimeStatus = new RuntimeStatusStore();
 const workerTracer = new Tracer();
+const notificationCenter = new NotificationCenter({
+  nativeApi: { create: (id, options) => chrome.notifications.create(id, options) },
+});
 const workerRecovery = new ErrorRecoveryManager({
   tracer: workerTracer,
   notifier: {
-    notify: ({ message, correlationId, severity }) => console.warn(`[AAMP][${severity}][${correlationId}] ${message}`),
+    notify: async ({ title, message, correlationId, severity }) => {
+      await notificationCenter.notify({
+        title,
+        message,
+        severity,
+        groupKey: `recovery:${severity}:${correlationId}`,
+      });
+    },
   },
 });
 workerRecovery.installGlobalHandlers(globalThis);
