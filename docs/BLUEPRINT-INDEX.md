@@ -13,13 +13,15 @@ This folder contains the complete planning and technical documentation for the p
 | `BLUEPRINT-INDEX.md` | This index file | ✅ Current |
 | `PHASE-0A-IMPLEMENTATION.md` | Phase 0A Manifest V3 scaffolding decisions and acceptance checks | ✅ Complete |
 | `PHASE-0B-0E-IMPLEMENTATION.md` | Phase 0B core-runtime port and Phase 0E test/CI implementation record | ✅ Complete |
+| `PHASE-0C-IMPLEMENTATION.md` | Phase 0C signed Content Bridge protocol and safety-boundary record | ✅ Complete |
+| `PHASE-0D-IMPLEMENTATION.md` | Phase 0D hybrid storage, compression, integrity, and recovery record | ✅ Complete |
 
 ## Blueprint Summary
 
 - **Total Phases**: 20
 - **Total Subphases**: 100
-- **Completed Milestones**: Phase 0A — Project Scaffolding ✅; Phase 0B — Core Utilities ✅; Phase 0E — Testing Foundation ✅
-- **Next Milestone**: Phase 0C — Content Bridge
+- **Completed Milestones**: Phase 0A — Project Scaffolding ✅; Phase 0B — Core Utilities ✅; Phase 0C — Content Bridge ✅; Phase 0D — Storage Layer v1 ✅; Phase 0E — Testing Foundation ✅
+- **Next Milestone**: Phase 1A — DOMObserver v2
 - **Platform**: Chrome Browser Extension (Manifest V3)
 - **Key Focus Areas**:
   - Gradual Multi-Agent rollout (Phase 3 → Phase 6)

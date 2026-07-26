@@ -1,6 +1,9 @@
+import { BridgeMessageType } from '../../../src/bridge/protocol';
 import { installChromeMock } from '../../support/chrome-mock';
+import { installWebCrypto } from '../../support/webcrypto';
 
 describe('Manifest V3 service worker', () => {
+  beforeAll(installWebCrypto);
   beforeEach(() => {
     jest.resetModules();
   });
@@ -38,5 +41,37 @@ describe('Manifest V3 service worker', () => {
 
     expect(respond).toHaveBeenCalledTimes(1);
     expect(respond).toHaveBeenCalledWith({ ok: true, version: '8.0.0', platform: 'manifest-v3' });
+  });
+
+  it('handles only a signed-bridge handshake from the extension content script', async () => {
+    const mock = installChromeMock('8.0.0');
+    await import('../../../src/background/service-worker');
+    const listener = mock.messageListeners[0];
+    if (!listener) throw new Error('worker listener was not registered');
+
+    const response = await new Promise<unknown>((resolve) => {
+      expect(listener(
+        { type: BridgeMessageType.handshake, protocol: 1 },
+        {
+          id: 'aamp-test-extension',
+          tab: { id: 7 },
+          frameId: 0,
+          url: 'https://arena.ai/agent/task',
+        } as chrome.runtime.MessageSender,
+        resolve,
+      )).toBe(true);
+    });
+
+    expect(response).toEqual(expect.objectContaining({ ok: true, protocol: 1 }));
+  });
+
+  it('runs the startup lifecycle callback without retaining state', async () => {
+    const mock = installChromeMock('8.0.0');
+    const lifecycleLog = jest.spyOn(console, 'info').mockImplementation();
+    await import('../../../src/background/service-worker');
+
+    mock.startupListeners[0]?.();
+
+    expect(lifecycleLog).toHaveBeenCalledWith('[AAMP] browser startup', expect.objectContaining({ version: '8.0.0' }));
   });
 });

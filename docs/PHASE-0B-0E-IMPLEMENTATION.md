@@ -63,11 +63,13 @@ The audit intentionally targets runtime dependencies. Test-tool dependency advis
 - Production extension build and manifest-artifact validation pass.
 - Legacy userscript regression suite passes.
 
-## Remaining Phase 0 work
+## Subsequent Phase 0 work
 
-| Subphase | Status | Required next work |
+The independently delivered follow-on implementation records are:
+
+| Subphase | Status | Record |
 |---|---|---|
-| **0C — Content Bridge** | Planned | Introduce a schema-validated, signed content ↔ service-worker protocol with explicit DOM-operation allow lists and adversarial tests. |
-| **0D — Storage Layer v1** | Planned | Add the hybrid `chrome.storage.local` + IndexedDB persistence layer, LZ4 compression, migration policy, quota/recovery tests, and then connect modules to it. |
+| **0C — Content Bridge** | Complete | [`PHASE-0C-IMPLEMENTATION.md`](PHASE-0C-IMPLEMENTATION.md) |
+| **0D — Storage Layer v1** | Complete | [`PHASE-0D-IMPLEMENTATION.md`](PHASE-0D-IMPLEMENTATION.md) |
 
-No Arena page data, agent state, or page-to-extension message channel has been enabled by this phase.
+Phase 0 still deliberately exposes no full Arena conversation data, arbitrary page command channel, or agent state. The Content Bridge allows only its documented bounded operations.

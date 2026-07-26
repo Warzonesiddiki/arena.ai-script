@@ -45,8 +45,9 @@
 - **0A — Project Scaffolding: Complete (2026-07-26).** The repository builds a least-privilege Manifest V3 extension with TypeScript + webpack 5, an ephemeral ES-module service worker, native Side Panel, popup, options page, and a deliberately inert content-script entry point. `npm run build` validates the generated manifest and all referenced artifacts before the output is loaded unpacked in Chrome.
 - **0B — Core Utilities: Complete (2026-07-26).** `ModuleRegistry`, `EventBus v2`, `TickDispatcher`, and `buildModal()` are now independently tested TypeScript modules under `src/core/`.
 - **0E — Testing Foundation: Complete (2026-07-26).** Jest, a scoped Chrome API mock, an 80% coverage floor for the ported foundation code, and Node 20/22 GitHub Actions CI are active.
-- **0C–0D: Planned.** No Arena page bridge or persistent product state has been enabled. This preserves the intended security and persistence sequencing.
-- **Implementation records:** [`PHASE-0A-IMPLEMENTATION.md`](PHASE-0A-IMPLEMENTATION.md) and [`PHASE-0B-0E-IMPLEMENTATION.md`](PHASE-0B-0E-IMPLEMENTATION.md).
+- **0C — Content Bridge: Complete (2026-07-26).** A schema-validated, HMAC-signed, replay-protected isolated-world content ↔ worker protocol now has an explicit safe DOM-operation allow list and adversarial unit tests. It exposes no page-facing message channel and fails closed when its ephemeral MV3 session is unavailable.
+- **0D — Storage Layer v1: Complete (2026-07-26).** A hybrid `chrome.storage.local` + IndexedDB storage layer now provides JSON-safe small values, LZ4-compressed large records, integrity checking, quota controls, repairable metadata indexing, and a 64 MiB raw-record cap.
+- **Implementation records:** [`PHASE-0A-IMPLEMENTATION.md`](PHASE-0A-IMPLEMENTATION.md), [`PHASE-0B-0E-IMPLEMENTATION.md`](PHASE-0B-0E-IMPLEMENTATION.md), [`PHASE-0C-IMPLEMENTATION.md`](PHASE-0C-IMPLEMENTATION.md), and [`PHASE-0D-IMPLEMENTATION.md`](PHASE-0D-IMPLEMENTATION.md).
 
 ---
 

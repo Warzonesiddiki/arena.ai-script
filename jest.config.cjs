@@ -6,10 +6,13 @@ module.exports = {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }],
   },
   roots: ['<rootDir>/tests/unit'],
+  setupFiles: ['<rootDir>/tests/setup/environment.ts'],
   testMatch: ['**/*.test.ts'],
   collectCoverageFrom: [
     'src/core/**/*.ts',
     'src/background/service-worker.ts',
+    'src/bridge/**/*.ts',
+    'src/storage/**/*.ts',
     '!src/core/diagnostics.ts',
   ],
   coverageDirectory: '<rootDir>/coverage',

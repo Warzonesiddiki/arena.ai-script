@@ -12,6 +12,7 @@ export interface ChromeMock {
   readonly messageListeners: MessageListener[];
   readonly chrome: typeof chrome;
   readonly setPanelBehavior: jest.Mock<Promise<void>, [chrome.sidePanel.PanelBehavior]>;
+  readonly sendTabMessage: jest.Mock<Promise<unknown>, [number, unknown, { frameId?: number } | undefined]>;
 }
 
 /**
@@ -23,6 +24,7 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
   const startupListeners: StartupListener[] = [];
   const messageListeners: MessageListener[] = [];
   const setPanelBehavior = jest.fn<Promise<void>, [chrome.sidePanel.PanelBehavior]>().mockResolvedValue();
+  const sendTabMessage = jest.fn<Promise<unknown>, [number, unknown, { frameId?: number } | undefined]>();
 
   const mock = {
     runtime: {
@@ -34,6 +36,7 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
       sendMessage: jest.fn(),
     },
     sidePanel: { setPanelBehavior },
+    tabs: { sendMessage: sendTabMessage },
   };
 
   Object.defineProperty(globalThis, 'chrome', {
@@ -48,5 +51,6 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
     messageListeners,
     chrome: mock as unknown as typeof chrome,
     setPanelBehavior,
+    sendTabMessage,
   };
 }
