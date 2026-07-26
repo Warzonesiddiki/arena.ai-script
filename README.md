@@ -14,7 +14,7 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 - Native Side Panel, popup, and options-page entry points
 - Narrow Arena.ai host permissions (`arena.ai` and its subdomains only)
 - Tested TypeScript ports of `ModuleRegistry`, `EventBus v2`, `TickDispatcher`, and `buildModal()`
-- Jest 30, a scoped Chrome API mock, an 80% coverage floor for the ported runtime, and Node 20/22 CI
+- Jest 30, a scoped Chrome API mock, an 80% coverage floor for the ported runtime, and a reproducible local CI command
 - A schema-validated, HMAC-signed, replay-protected Content Bridge that accepts no page-facing messages and permits only bounded snapshot/status DOM operations
 - Hybrid `chrome.storage.local` + IndexedDB storage with LZ4-compressed large records, integrity checks, quota controls, and repairable indexing
 - A single scoped DOM observer that never falls back to `document.body`, centralized timer/observer ownership, bounded recovery fallbacks, structured correlation tracing, and mutation/heap performance budgets
@@ -89,7 +89,7 @@ The current suite runs:
 2. Jest unit tests—with an 80% coverage threshold—for the ported core runtime and service worker.
 3. The retained v7.2 userscript syntax, smoke, and regression checks.
 
-GitHub Actions runs the suite on Node 20 and Node 22 after a runtime dependency audit.
+Run `npm run ci` locally (or in an external CI provider) to perform the runtime dependency audit and full suite. The repository workflow file is intentionally deferred because this branch token cannot publish GitHub Actions workflow changes.
 
 ## Repository layout
 

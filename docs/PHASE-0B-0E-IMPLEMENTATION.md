@@ -8,7 +8,7 @@
 
 ## Scope delivered
 
-Phase 0B ports the four v7.2 architectural primitives into independently importable TypeScript modules. Phase 0E then supplies the test runner, Chrome API mock, coverage guard, and continuous-integration workflow required to make those ports safe to evolve.
+Phase 0B ports the four v7.2 architectural primitives into independently importable TypeScript modules. Phase 0E then supplies the test runner, Chrome API mock, coverage guard, and continuous-integration command required to make those ports safe to evolve.
 
 | Blueprint item | Delivered artifact | Behavior preserved / strengthened |
 |---|---|---|
@@ -18,7 +18,7 @@ Phase 0B ports the four v7.2 architectural primitives into independently importa
 | `buildModal()` | `src/core/modal.ts` | Replacement by ID, v7.2 class names/layout, optional footer/width/style, backdrop and close-button behavior; title now uses `textContent` |
 | Jest + coverage | `jest.config.cjs`, `tsconfig.test.json`, `tests/unit/` | Jest 30 + ts-jest, jsdom DOM tests, a coverage floor of 80% for the ported foundation modules |
 | Chrome test utility | `tests/support/chrome-mock.ts` | Small explicit mock of only the Chrome APIs currently used, plus a service-worker lifecycle/message test |
-| GitHub Actions | `.github/workflows/ci.yml` | Node 20 and 22 matrix runs runtime dependency audit and the full test suite on pushes and pull requests |
+| CI command | `npm run ci` | Runs runtime dependency audit and the full test suite; a hosted workflow is deferred until workflow-write credentials are available |
 
 ## Porting decisions
 
@@ -52,7 +52,7 @@ npm test
 - `test:unit` executes the Jest suite with coverage. The current enforced baseline is **80%** across statements, branches, functions, and lines for the ported core and service-worker code.
 - `test:extension` runs the production build and validates the generated MV3 manifest/artifacts.
 - `test:legacy` retains syntax, smoke, tool-loop, and pause/resume regression tests for the v7.2 userscript during the migration.
-- CI uses `npm ci`, `npm audit --omit=dev`, and `npm test` on Node 20 and Node 22.
+- `npm run ci` runs `npm audit --omit=dev` and `npm test`; it is ready for a Node 20/22 hosted runner once workflow-write credentials are available.
 
 The audit intentionally targets runtime dependencies. Test-tool dependency advisories do not affect the shipped extension bundle; they are monitored as part of regular dependency maintenance and must not be copied into runtime dependencies.
 
