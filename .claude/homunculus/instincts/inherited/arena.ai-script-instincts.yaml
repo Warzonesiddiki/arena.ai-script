@@ -1,0 +1,411 @@
+# Instincts generated from https://github.com/Warzonesiddiki/arena.ai-script
+# Generated: 2026-07-26T21:25:12.736Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: arena.ai-script-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Commit Length
+
+## Action
+
+Write moderate-length commit messages (~59 characters)
+
+## Evidence
+
+- Average commit message length: 59 chars
+- Based on 3 commits
+
+---
+id: arena.ai-script-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Naming Files
+
+## Action
+
+Use kebab-case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: kebab-case
+
+---
+id: arena.ai-script-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: arena.ai-script-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: arena.ai-script-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: arena.ai-script-workflow-bmad-section-documentation-workflow
+trigger: "when doing bmad section documentation workflow"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Workflow Bmad Section Documentation Workflow
+
+## Action
+
+Follow the bmad-section-documentation-workflow workflow:
+1. Create or update 01-brainstorming.md through 11-code-review.md in the relevant bmad/sections/<section-name>/ directory.
+2. Update or create ALL-STEPS.md and DONE.md in the same directory.
+3. Update bmad/STATUS.md to reflect documentation status.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: bmad/sections/*/01-brainstorming.md, bmad/sections/*/02-research.md, bmad/sections/*/03-product-brief.md
+
+---
+id: arena.ai-script-workflow-release-bugfix-feature-pass
+trigger: "when doing release bugfix feature pass"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Workflow Release Bugfix Feature Pass
+
+## Action
+
+Follow the release-bugfix-feature-pass workflow:
+1. Fix bugs in main implementation file(s).
+2. Wire up or register previously orphaned modules in the registry.
+3. Replace stubs with real implementations for modules/features.
+4. Add or update test files (e.g., regression, smoke tests).
+5. Update package.json and package-lock.json as needed.
+6. Update .gitignore if new files/folders are added.
+7. Archive legacy or superseded files to archive/.
+8. Bump version number in code and documentation.
+9. Update in-app changelog and status documentation.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: arena-agent-mode-pro.user.js, tests/*.js, package.json
+
+---
+id: arena.ai-script-instinct-naming-files
+trigger: "When creating or renaming a file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Naming Files
+
+## Action
+
+Use kebab-case for file names (e.g., my-module.js)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files
+- All files in examples use kebab-case
+
+---
+id: arena.ai-script-instinct-naming-functions
+trigger: "When defining a function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Naming Functions
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+
+---
+id: arena.ai-script-instinct-naming-classes
+trigger: "When defining a class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Naming Classes
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: arena.ai-script-instinct-naming-constants
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Naming Constants
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: arena.ai-script-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Import Style
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+
+---
+id: arena.ai-script-instinct-export-style
+trigger: "When exporting from a module"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: arena.ai-script-instinct-testing-location
+trigger: "When adding or updating tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Testing Location
+
+## Action
+
+Place test files in a separate 'tests/' directory
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation
+- release-bugfix-feature-pass workflow includes tests/*.js
+
+---
+id: arena.ai-script-instinct-testing-update
+trigger: "When implementing new features or fixing bugs"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Testing Update
+
+## Action
+
+Add or update regression and smoke tests in tests/*.js
+
+## Evidence
+
+- release-bugfix-feature-pass workflow step: Add or update test files (e.g., regression, smoke tests)
+
+---
+id: arena.ai-script-instinct-git-commit-prefix-bmad
+trigger: "When committing documentation or BMAD-related changes"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Git Commit Prefix Bmad
+
+## Action
+
+Prefix commit message with 'bmad:'
+
+## Evidence
+
+- Commit example: 'bmad: backfill full 11-step docs for sections 006-032'
+
+---
+id: arena.ai-script-instinct-git-commit-prefix-chore
+trigger: "When committing minor fixes or maintenance tasks"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Git Commit Prefix Chore
+
+## Action
+
+Prefix commit message with 'chore:'
+
+## Evidence
+
+- Commit example: 'chore: fix hardcoded 'v7.0' boot banner to use SCRIPT_VERSION dynamically'
+
+---
+id: arena.ai-script-instinct-git-commit-format-version
+trigger: "When releasing a new version"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Git Commit Format Version
+
+## Action
+
+Prefix commit message with the version number (e.g., 'v7.1: ...')
+
+## Evidence
+
+- Commit example: 'v7.1: critical bugfix pass on Arena Agent Mode Pro'
+
+---
+id: arena.ai-script-instinct-bmad-section-docs
+trigger: "When documenting a new or existing module/feature in BMAD"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Bmad Section Docs
+
+## Action
+
+Create or update 01-brainstorming.md through 11-code-review.md, ALL-STEPS.md, DONE.md, and update bmad/STATUS.md in the relevant bmad/sections/<section-name>/ directory
+
+## Evidence
+
+- bmad-section-documentation-workflow
+- Commit sequence and files involved in workflow
+
+---
+id: arena.ai-script-instinct-release-bugfix-feature-pass
+trigger: "When releasing a new version with critical bugfixes or major features"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: Warzonesiddiki/arena.ai-script
+---
+
+# Arena.ai Script Instinct Release Bugfix Feature Pass
+
+## Action
+
+Fix bugs, wire up modules, replace stubs, update/add tests, update package.json and package-lock.json, update .gitignore, archive legacy files, bump version, update changelog and status docs
+
+## Evidence
+
+- release-bugfix-feature-pass workflow
+- Commit sequence and files involved in workflow
+
