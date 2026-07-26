@@ -1,0 +1,27 @@
+{
+  "name": "arena.ai-script",
+  "version": "7.0.0",
+  "description": "Arena Agent Mode Pro — Tampermonkey/Greasemonkey userscript that enhances the Arena.ai chat/agent UI (HUD, command palette, session recovery, export, automation).",
+  "main": "arena-agent-mode-pro.user.js",
+  "scripts": {
+    "test": "node --check arena-agent-mode-pro.user.js && node tests/smoke.js && node tests/regression-toolcall-loop.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Warzonesiddiki/arena.ai-script.git"
+  },
+  "keywords": [
+    "userscript",
+    "tampermonkey",
+    "arena.ai"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Warzonesiddiki/arena.ai-script/issues"
+  },
+  "homepage": "https://github.com/Warzonesiddiki/arena.ai-script#readme",
+  "devDependencies": {
+    "jsdom": "^29.0.0"
+  }
+}
