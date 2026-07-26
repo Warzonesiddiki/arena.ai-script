@@ -1,0 +1,19 @@
+# Section 008: HUD Widget — Step 4: PRD
+
+## Requirements
+1. `HUD` must initialize without throwing during `ModuleRegistry.boot()`.
+2. Its public API (below) must behave as documented.
+3. Any config keys it reads must have sane defaults in `CONFIG_SCHEMA`.
+
+## Public API (acceptance surface)
+- `build() — creates and mounts the HUD element`
+- `update() — refreshes displayed values from the state store`
+- `setVisible(bool) — show/hide the HUD`
+- `setPosition(pos) — bottom-right/top-right/bottom-left/top-left`
+- `formatDuration(seconds) / formatTokens(n) — display formatting helpers`
+
+## Acceptance Criteria
+- [x] `node --check arena-agent-mode-pro.user.js` passes
+- [x] `npm test` (jsdom boot harness) shows this module in the "ready" set, not "errored"
+- [x] Manual DOM-activity simulation (see `tests/smoke.js` / `tests/regression-toolcall-loop.js`)
+      does not surface exceptions attributable to this module

@@ -35,24 +35,23 @@ running the code, not just reading it.**
 |-------|----------|-----------|--------|-------|
 | 001 | Architecture Boot | ✅ Full 11-step | Implemented | 1 |
 | 002-004 | Config/State/EventBus | ✅ Partial | Implemented | 3 |
-| 005-032 | Core Features | ✅ ALL-STEPS (26 sections still need full 11-step docs) | Implemented + runtime-verified | 28 |
+| 005-032 | Core Features | ✅ Full 11-step (backfilled 2026-07-27) | Implemented + runtime-verified | 28 |
 | 033-048 | Grey Area Suites | ✅ Full 11-step | Implemented | 16 |
 | 049-100 | Advanced/Polish | ✅ Full 11-step | Implemented | 52 |
 | 101 | v7.1 Bugfix Pass | ✅ Full 11-step | Complete | 1 |
 
 ### Totals
 - **101 BMAD sections** — all with documentation
-- **75 sections** with full 11-step BMAD docs (individual step files)
-- **26 sections** (006-032) still only have `ALL-STEPS.md` condensed docs
-  instead of full 11-step files + `DONE.md` — documentation debt, tracked,
-  not yet backfilled. Functionally these sections are implemented and now
-  runtime-verified as part of the v7.1 pass.
+- **101 sections** with full 11-step BMAD docs + `DONE.md` (was 75; the
+  remaining 26 condensed `ALL-STEPS.md`-only sections, 006-032, were
+  backfilled to full 11-step docs on 2026-07-27)
 - **100 ModuleRegistry registrations** — Phases 0-5 (was 78; +22 previously
   orphaned modules now registered)
 - **0 modules erroring at boot** (was 7), verified via `tests/smoke.js`
 - **1 critical bug fixed:** infinite DOM-mutation loop (tool-call wrapping)
 - **5 fake/no-op stub modules replaced with real implementations**
 - **2 automated regression tests added**, wired into `npm test`
+
 
 ## Legend
 - ✅ Full 11-step BMAD — complete with individual step files
@@ -79,8 +78,8 @@ running the code, not just reading it.**
   sandboxed. Anyone enabling these features is trusting their own input.
 
 ## Remaining Work (tracked, not blocking)
-- Backfill full 11-step BMAD docs (Steps 1-11 + DONE.md) for sections 006-032
-  to close the documentation debt noted above. Functionally complete;
-  paperwork only.
+- None outstanding from the original 100-section plan. All sections have full
+  11-step BMAD docs + DONE.md, and all ModuleRegistry modules boot without
+  error as of the v7.1 pass (2026-07-27).
 
 ## Deployable — syntax checked with `node --check` ✅ · runtime-verified with `npm test` ✅
