@@ -18,16 +18,65 @@ interface Usage {
 
 export interface CommandIndexOptions {
   now?: () => number;
+  memoryGraph?: ScopedMemoryGraph;
 }
 
-/** Deterministic lexical-semantic + frecency command search with no prompt/context retention. */
+export interface ScopedMemoryNode {
+  id: string;
+  label: string;
+  summary: string;
+  terms: readonly string[];
+}
+
+export interface MemorySearchResult extends ScopedMemoryNode {
+  score: number;
+  matchedTerms: readonly string[];
+}
+
+export interface WorkspaceSearchResult {
+  commands: CommandResult[];
+  memory: MemorySearchResult[];
+}
+
+/** An ephemeral, caller-scoped graph search surface; Phase 4 adds durable graph storage. */
+export class ScopedMemoryGraph {
+  private readonly nodes = new Map<string, ScopedMemoryNode>();
+
+  public register(node: ScopedMemoryNode): void {
+    if (!/^[A-Za-z0-9._:-]{1,128}$/u.test(node.id) || !node.label.trim() || !node.summary.trim()) {
+      throw new TypeError('Memory nodes require a valid id, label, and summary.');
+    }
+    this.nodes.set(node.id, { ...node, terms: [...node.terms] });
+  }
+
+  public search(query: string, limit = 10): MemorySearchResult[] {
+    const queryTerms = tokenize(query);
+    if (queryTerms.length === 0) return [];
+    return [...this.nodes.values()]
+      .map((node) => {
+        const document = `${node.label} ${node.summary} ${node.terms.join(' ')}`.toLowerCase();
+        const matchedTerms = queryTerms.filter((term) => document.includes(term));
+        return { ...node, matchedTerms, score: matchedTerms.length / queryTerms.length };
+      })
+      .filter((result) => result.score > 0)
+      .sort((left, right) => right.score - left.score || left.label.localeCompare(right.label))
+      .slice(0, limit);
+  }
+}
+
+/**
+ * Deterministic lexical-semantic + frecency command search with no prompt/context retention.
+ * A caller may attach only an explicitly scoped memory graph for artifact discovery.
+ */
 export class CommandIndex {
   private readonly definitions = new Map<string, CommandDefinition>();
   private readonly usage = new Map<string, Usage>();
   private readonly now: () => number;
+  private readonly memoryGraph?: ScopedMemoryGraph;
 
   public constructor(options: CommandIndexOptions = {}) {
     this.now = options.now ?? Date.now;
+    this.memoryGraph = options.memoryGraph;
   }
 
   public register(command: CommandDefinition): void {
@@ -48,6 +97,13 @@ export class CommandIndex {
       .filter((result) => result.score > 0)
       .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title))
       .slice(0, limit);
+  }
+
+  public searchWorkspace(query: string, limit = 20): WorkspaceSearchResult {
+    return {
+      commands: this.search(query, limit),
+      memory: this.memoryGraph?.search(query, limit) ?? [],
+    };
   }
 
   private score(command: CommandDefinition, terms: readonly string[]): CommandResult {

@@ -1,8 +1,13 @@
 import { buildModal } from '../core/modal';
-import { CommandIndex, type CommandDefinition } from './command-index';
+import { CommandIndex, type CommandDefinition, type ScopedMemoryGraph } from './command-index';
 
-export function openCommandPalette(documentRef: Document, commands: readonly CommandDefinition[], onSelect: (id: string) => void): HTMLElement {
-  const index = new CommandIndex();
+export function openCommandPalette(
+  documentRef: Document,
+  commands: readonly CommandDefinition[],
+  onSelect: (id: string) => void,
+  memoryGraph?: ScopedMemoryGraph,
+): HTMLElement {
+  const index = new CommandIndex({ memoryGraph });
   commands.forEach((command) => index.register(command));
   const modal = buildModal('aamp-command-palette', 'Command Palette', '<div class="aamp-command-palette-content"></div>', { document: documentRef, width: '680px' });
   const container = modal.querySelector('.aamp-command-palette-content');
@@ -19,7 +24,8 @@ export function openCommandPalette(documentRef: Document, commands: readonly Com
 
   const render = (): void => {
     results.replaceChildren();
-    index.search(input.value).forEach((command) => {
+    const workspace = index.searchWorkspace(input.value);
+    workspace.commands.forEach((command) => {
       const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'aamp-command-result';
@@ -28,6 +34,17 @@ export function openCommandPalette(documentRef: Document, commands: readonly Com
         index.recordUse(command.id);
         modal.remove();
         onSelect(command.id);
+      });
+      results.append(button);
+    });
+    workspace.memory.forEach((node) => {
+      const button = documentRef.createElement('button');
+      button.type = 'button';
+      button.className = 'aamp-command-result';
+      button.textContent = `Memory: ${node.label} — ${node.summary}`;
+      button.addEventListener('click', () => {
+        modal.remove();
+        onSelect(`memory:${node.id}`);
       });
       results.append(button);
     });

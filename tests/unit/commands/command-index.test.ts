@@ -1,4 +1,4 @@
-import { CommandIndex } from '../../../src/commands/command-index';
+import { CommandIndex, ScopedMemoryGraph } from '../../../src/commands/command-index';
 
 describe('CommandIndex', () => {
   it('combines lexical-semantic relevance with deterministic frecency', () => {
@@ -12,6 +12,19 @@ describe('CommandIndex', () => {
     index.recordUse('refresh');
     now += 100;
     expect(index.search('')[0]?.id).toBe('refresh');
+  });
+
+  it('searches only caller-scoped memory nodes alongside commands', () => {
+    const graph = new ScopedMemoryGraph();
+    graph.register({ id: 'artifact:one', label: 'Budget report', summary: 'Workflow cost report', terms: ['spend', 'governance'] });
+    const index = new CommandIndex({ memoryGraph: graph });
+    index.register({ id: 'settings', title: 'Open settings', description: 'Configure preferences', category: 'Extension' });
+
+    expect(index.searchWorkspace('governance')).toEqual({
+      commands: [],
+      memory: [expect.objectContaining({ id: 'artifact:one', matchedTerms: ['governance'] })],
+    });
+    expect(() => graph.register({ id: 'bad id', label: '', summary: '', terms: [] })).toThrow(TypeError);
   });
 
   it('validates command identifiers and unknown usage', () => {
