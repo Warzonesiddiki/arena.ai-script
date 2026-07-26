@@ -447,6 +447,7 @@
         autoContinue: { type:'boolean', default:true, group:'agent' },
         autoContinueDelay: { type:'number', default:2000, min:500, max:10000, step:500, group:'agent' },
         notificationsEnabled: { type:'boolean', default:true, group:'agent' },
+        toastVerbosity: { type:'string', default:'normal', enum:['silent','low','normal','high'], group:'agent', description:'Toast notification frequency' },
         autoOpenWorkspace: { type:'boolean', default:true, group:'agent' },
         shortcutsEnabled: { type:'boolean', default:true, group:'shortcuts' },
         cmdPaletteKey: { type:'string', default:'k', group:'shortcuts' },
@@ -1518,6 +1519,12 @@ function update() {
     let _toastContainer = null;
 
     function toast(message, type = 'info', duration = 3000) {
+        const verbosity = Config.get('toastVerbosity') || 'normal';
+        if (verbosity === 'silent') return;
+
+        // Reduce spam on low verbosity (skip info toasts)
+        if (verbosity === 'low' && type === 'info') return;
+
         if (!_toastContainer) {
             _toastContainer = document.createElement('div');
             _toastContainer.id = `${SCRIPT_ID}-toast-container`;
@@ -1529,10 +1536,6 @@ function update() {
         el.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
         _toastContainer.appendChild(el);
         setTimeout(() => { el.classList.add('aamp-toast-out'); setTimeout(() => el.remove(), 250); }, duration);
-        // Notify anything tracking toast history (e.g. NotificationCenter) — this
-        // was previously never emitted, so NotificationCenter's history stayed
-        // empty for every toast() call across the whole script (hundreds of
-        // call sites), only ever gaining entries via its own push() wrapper.
         if (typeof EventBus !== 'undefined') EventBus.emit('toast:shown', { message, type, duration });
     }
 
