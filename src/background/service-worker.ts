@@ -1,4 +1,5 @@
 import { BridgeSessionManager } from '../bridge/session-manager';
+import { RuntimeStatusStore } from './runtime-status';
 import {
   isEventMessage,
   isHandshakeRequest,
@@ -16,6 +17,8 @@ import { ErrorRecoveryManager } from '../reliability/recovery-manager';
  * isolated content script whenever it loads.
  */
 const HEALTH_CHECK_MESSAGE = 'aamp:health-check';
+const RUNTIME_STATUS_MESSAGE = 'aamp:runtime-status';
+const runtimeStatus = new RuntimeStatusStore();
 const workerTracer = new Tracer();
 const workerRecovery = new ErrorRecoveryManager({
   tracer: workerTracer,
@@ -26,6 +29,7 @@ const workerRecovery = new ErrorRecoveryManager({
 workerRecovery.installGlobalHandlers(globalThis);
 const bridgeSessions = new BridgeSessionManager({
   runtimeId: chrome.runtime.id,
+  onAcceptedEvent: (envelope) => runtimeStatus.recordBridgeEvent(envelope),
   sendToTab: (tabId, message, options) => chrome.tabs.sendMessage(tabId, message, options),
 });
 
@@ -64,6 +68,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return;
   }
 
+  if (isRuntimeStatusRequest(message)) {
+    sendResponse({ ok: true, status: runtimeStatus.get(chrome.runtime.getManifest().version) });
+    return;
+  }
+
   if (!isHandshakeRequest(message) && !isEventMessage(message)) return;
 
   void bridgeSessions.handleMessage(message, sender)
@@ -74,6 +83,14 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     });
   return true;
 });
+
+function isRuntimeStatusRequest(message: unknown): message is { type: typeof RUNTIME_STATUS_MESSAGE } {
+  return typeof message === 'object'
+    && message !== null
+    && Object.keys(message).length === 1
+    && 'type' in message
+    && (message as { type?: unknown }).type === RUNTIME_STATUS_MESSAGE;
+}
 
 function isHealthCheck(message: unknown): message is { type: typeof HEALTH_CHECK_MESSAGE } {
   return typeof message === 'object'

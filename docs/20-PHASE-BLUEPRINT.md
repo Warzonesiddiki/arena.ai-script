@@ -77,6 +77,10 @@
 
 **Goal**: Deliver immediate value while preparing infrastructure for expensive features.
 
+**Implementation status:**
+- **2A — Side Panel: Complete (2026-07-26).** The Side Panel presents bounded, signed-bridge runtime state, safe status indicators, manual refresh, and settings quick action using the central TickDispatcher.
+- **2B–2E: Planned.** See [`PHASE-2A-IMPLEMENTATION.md`](PHASE-2A-IMPLEMENTATION.md).
+
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
 | **2A** | Side Panel | Persistent control panel | Real-time agent status + quick actions | 1A | Always-visible controls without popup |

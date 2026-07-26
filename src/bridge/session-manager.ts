@@ -7,6 +7,7 @@ import {
   isEventMessage,
   isHandshakeRequest,
   isSignedEnvelope,
+  type SignedBridgeEnvelope,
   makeFailure,
   signEnvelope,
   type BridgeCommandMessage,
@@ -28,6 +29,7 @@ interface BridgeSession {
 
 export interface BridgeSessionManagerDependencies {
   runtimeId: string;
+  onAcceptedEvent?: (envelope: SignedBridgeEnvelope) => void;
   sendToTab?: (tabId: number, message: BridgeCommandMessage, options: { frameId: number }) => Promise<unknown>;
   now?: () => number;
 }
@@ -114,6 +116,7 @@ export class BridgeSessionManager {
 
     session.seenMessageIds.set(envelope.messageId, envelope.timestamp);
     this.pruneReplayCache(session);
+    this.dependencies.onAcceptedEvent?.(envelope);
     return { ok: true };
   }
 

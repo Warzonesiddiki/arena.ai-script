@@ -8,17 +8,40 @@
   </head>
   <body>
     <main class="aamp-surface aamp-panel" aria-labelledby="sidepanel-title">
-      <p class="aamp-eyebrow">Arena Agent Mode Pro · v8</p>
-      <h1 id="sidepanel-title">Control center</h1>
+      <header class="aamp-panel-header">
+        <div>
+          <p class="aamp-eyebrow">Arena Agent Mode Pro · v8</p>
+          <h1 id="sidepanel-title">Control center</h1>
+        </div>
+        <span id="bridge-indicator" class="aamp-indicator" data-state="unknown">Checking</span>
+      </header>
+
       <p id="sidepanel-status" class="aamp-status" role="status">Connecting to extension service…</p>
-      <section class="aamp-card" aria-labelledby="foundation-title">
-        <h2 id="foundation-title">Foundation status</h2>
+
+      <section class="aamp-card" aria-labelledby="arena-status-title">
+        <div class="aamp-card-heading">
+          <h2 id="arena-status-title">Arena connection</h2>
+          <button id="refresh-status" class="aamp-button aamp-button-quiet" type="button">Refresh</button>
+        </div>
+        <dl class="aamp-status-list">
+          <div><dt>Mode</dt><dd id="arena-mode">—</dd></div>
+          <div><dt>Page</dt><dd id="arena-path">—</dd></div>
+          <div><dt>Last update</dt><dd id="arena-updated">—</dd></div>
+        </dl>
+      </section>
+
+      <section class="aamp-card" aria-labelledby="safety-title">
+        <h2 id="safety-title">Safety status</h2>
         <ul class="aamp-list">
-          <li>Manifest V3 service worker is active.</li>
-          <li>Side Panel, popup, and options surfaces are available.</li>
-          <li>Safe Arena content communication is scheduled for Phase 0C.</li>
+          <li>Scoped context bridge is active.</li>
+          <li>Observability and recovery guards are active.</li>
+          <li>Multi-agent orchestration is not enabled.</li>
         </ul>
       </section>
+
+      <div class="aamp-actions" aria-label="Extension actions">
+        <a class="aamp-button" href="../options/options.html" target="_blank">Open settings</a>
+      </div>
     </main>
     <script src="sidepanel.js"></script>
   </body>

@@ -10,7 +10,7 @@ module.exports = {
   testMatch: ['**/*.test.ts'],
   collectCoverageFrom: [
     'src/core/**/*.ts',
-    'src/background/service-worker.ts',
+    'src/background/**/*.ts',
     'src/bridge/**/*.ts',
     'src/storage/**/*.ts',
     'src/observability/**/*.ts',

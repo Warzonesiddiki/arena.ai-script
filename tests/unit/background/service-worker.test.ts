@@ -43,6 +43,23 @@ describe('Manifest V3 service worker', () => {
     expect(respond).toHaveBeenCalledWith({ ok: true, version: '8.0.0', platform: 'manifest-v3' });
   });
 
+  it('returns a bounded runtime status only to extension-owned pages', async () => {
+    const mock = installChromeMock('8.0.0');
+    await import('../../../src/background/service-worker');
+    const listener = mock.messageListeners[0];
+    if (!listener) throw new Error('worker listener was not registered');
+    const respond = jest.fn();
+
+    listener({ type: 'aamp:runtime-status' }, { id: 'aamp-test-extension' } as chrome.runtime.MessageSender, respond);
+    listener({ type: 'aamp:runtime-status' }, { id: 'other' } as chrome.runtime.MessageSender, respond);
+
+    expect(respond).toHaveBeenCalledTimes(1);
+    expect(respond).toHaveBeenCalledWith(expect.objectContaining({
+      ok: true,
+      status: expect.objectContaining({ version: '8.0.0', bridge: expect.objectContaining({ connected: false }) }),
+    }));
+  });
+
   it('handles only a signed-bridge handshake from the extension content script', async () => {
     const mock = installChromeMock('8.0.0');
     await import('../../../src/background/service-worker');
