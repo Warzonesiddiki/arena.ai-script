@@ -55,6 +55,11 @@
 
 **Goal**: Establish reliability and debugging capabilities before complexity.
 
+**Implementation status:**
+- **1A — DOMObserver v2: Complete (2026-07-26).** `DomObserverV2` observes only a caller-provided Arena root, emits scoped mutation events, ignores extension/transient nodes, and rejects `document.body` observation.
+- **1B — TickDispatcher: Complete (2026-07-26).** Source-level regression guards prevent raw repeating timers or additional raw observers outside their designated central owners.
+- **1C–1E: Planned.** See [`PHASE-1A-1B-IMPLEMENTATION.md`](PHASE-1A-1B-IMPLEMENTATION.md).
+
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
 | **1A** | DOMObserver v2 | Scoped observer | Emits `{ node, mutations, timestamp }` with ignore rules | 0B | No full `document.body` rescans |

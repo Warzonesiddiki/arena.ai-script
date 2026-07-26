@@ -8,7 +8,7 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 
 ## Current implementation status
 
-**All Phase 0 subphases are complete.** The repository now builds an unpacked Manifest V3 extension with:
+**Phase 0 and Phase 1A–1B are complete.** The repository now builds an unpacked Manifest V3 extension with:
 
 - TypeScript + webpack 5 build pipeline and ES-module service worker
 - Native Side Panel, popup, and options-page entry points
@@ -17,9 +17,10 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 - Jest 30, a scoped Chrome API mock, an 80% coverage floor for the ported runtime, and Node 20/22 CI
 - A schema-validated, HMAC-signed, replay-protected Content Bridge that accepts no page-facing messages and permits only bounded snapshot/status DOM operations
 - Hybrid `chrome.storage.local` + IndexedDB storage with LZ4-compressed large records, integrity checks, quota controls, and repairable indexing
+- A single scoped DOM observer that never falls back to `document.body`, plus source-level guards for centralized timer/observer ownership
 - Build-artifact manifest validation before an extension is loaded in Chrome
 
-The legacy v7.2 userscript remains at `arena-agent-mode-pro.user.js` while its capabilities are ported in blueprint order. The next work item is **Phase 1A: DOMObserver v2**; no multi-agent feature is enabled yet.
+The legacy v7.2 userscript remains at `arena-agent-mode-pro.user.js` while its capabilities are ported in blueprint order. The next work item is **Phase 1C: Error Recovery**; no multi-agent feature is enabled yet.
 
 ## Blueprint and project documentation
 
@@ -31,6 +32,7 @@ The implementation sequence and technical guardrails are documented in:
 - [Phase 0B & 0E Implementation Record](docs/PHASE-0B-0E-IMPLEMENTATION.md)
 - [Phase 0C Content Bridge Record](docs/PHASE-0C-IMPLEMENTATION.md)
 - [Phase 0D Storage Record](docs/PHASE-0D-IMPLEMENTATION.md)
+- [Phase 1A & 1B Record](docs/PHASE-1A-1B-IMPLEMENTATION.md)
 - [Documentation Index](docs/BLUEPRINT-INDEX.md)
 
 Key principles are deterministic coordination, minimum necessary context, observability before complexity, hard cost governance, and gradual rollout (a maximum of three agents in Phase 3 and five in Phase 6).
