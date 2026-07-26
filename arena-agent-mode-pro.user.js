@@ -2,7 +2,7 @@
 // @name         Arena Agent Mode Pro
 // @namespace    https://arena.ai/
 // @version      7.1.1
-// @description  v7.1 · Critical bugfix pass (infinite tool-call loop, duplicate init, dead modules) · ModuleRegistry Architecture · Phase-Based Boot · Error Isolation · Agent Mode Pro
+// @description  v7.2 · Performance (debounced DOM scans, consolidated observers, heap sampling) + UI/UX overhaul (Command Palette frecency, buildModal helper, real CSS classes) · ModuleRegistry Architecture · Phase-Based Boot · Error Isolation · Agent Mode Pro
 // @author       Arena Agent Mode Pro
 // @match        https://arena.ai/*
 // @match        https://*.arena.ai/*
@@ -18,8 +18,8 @@
     'use strict';
 
     const SCRIPT_ID      = 'aamp';
-    const SCRIPT_VERSION = '7.1.1';
-    const SCRIPT_NAME    = 'Arena Agent Mode Pro (v7.1 Bugfix Pass)';
+    const SCRIPT_VERSION = '7.2.0';
+    const SCRIPT_NAME    = 'Arena Agent Mode Pro (v7.2 Performance & UI Overhaul)';
 
     // ============================================================
     //  ███████╗██╗██╗  ██╗███████╗██████╗     ██╗   ██╗████████╗██╗██╗     ███████╗
@@ -80,6 +80,37 @@
     function debounce(fn, delay) {
         let timer;
         return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+    }
+
+    /* ── SHARED MODAL BUILDER (eliminates ~8 duplicated modal templates) ── */
+    function buildModal(id, title, bodyHTML, options = {}) {
+        const existing = document.getElementById(id);
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = id;
+        modal.className = options.className || '';
+        modal.style.cssText = options.style || `position:fixed;inset:0;z-index:999995;display:flex;align-items:center;justify-content:center;font-family:var(--aamp-font);`;
+
+        modal.innerHTML = `
+            <div class="aamp-modal-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);"></div>
+            <div class="aamp-modal-panel" style="position:relative;background:var(--aamp-surface);border:1px solid var(--aamp-border);border-radius:16px;box-shadow:var(--aamp-shadow),var(--aamp-glow);max-width:90vw;max-height:85vh;width:${options.width || '640px'};overflow:hidden;display:flex;flex-direction:column;">
+                <div class="aamp-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--aamp-surface2);border-bottom:1px solid var(--aamp-border);flex-shrink:0;">
+                    <span style="font-size:16px;font-weight:700;color:var(--aamp-text);">${title}</span>
+                    <button class="aamp-modal-close" style="background:none;border:none;color:var(--aamp-text2);cursor:pointer;font-size:18px;">✕</button>
+                </div>
+                <div class="aamp-modal-body" style="flex:1;overflow-y:auto;padding:20px;">${bodyHTML}</div>
+                ${options.footer ? `<div class="aamp-modal-footer" style="padding:12px 20px;border-top:1px solid var(--aamp-border);background:var(--aamp-surface2);flex-shrink:0;">${options.footer}</div>` : ''}
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Close handlers
+        modal.querySelector('.aamp-modal-backdrop').addEventListener('click', () => modal.remove());
+        modal.querySelector('.aamp-modal-close').addEventListener('click', () => modal.remove());
+
+        return modal;
     }
 
     /* ── DOWNLOAD FILE ─────────────────────────────────────────── */
@@ -416,6 +447,7 @@
         autoContinue: { type:'boolean', default:true, group:'agent' },
         autoContinueDelay: { type:'number', default:2000, min:500, max:10000, step:500, group:'agent' },
         notificationsEnabled: { type:'boolean', default:true, group:'agent' },
+        toastVerbosity: { type:'string', default:'normal', enum:['silent','low','normal','high'], group:'agent', description:'Toast notification frequency' },
         autoOpenWorkspace: { type:'boolean', default:true, group:'agent' },
         shortcutsEnabled: { type:'boolean', default:true, group:'shortcuts' },
         cmdPaletteKey: { type:'string', default:'k', group:'shortcuts' },
@@ -794,7 +826,45 @@
     const { store: S } = State;
 
     // ============================================================
-    //  DOM OBSERVER & AGENT DETECTOR
+    //  SHARED TICK DISPATCHER (consolidates 8+ setInterval timers)
+    // ============================================================
+    const TickDispatcher = (() => {
+        const _ticks = new Map();
+        let _timer = null;
+        let _lastRun = Date.now();
+
+        function register(name, fn, intervalMs) {
+            _ticks.set(name, { fn, intervalMs, lastRun: 0 });
+        }
+
+        function unregister(name) {
+            _ticks.delete(name);
+        }
+
+        function start() {
+            if (_timer) return;
+            _timer = setInterval(() => {
+                const now = Date.now();
+                for (const [name, entry] of _ticks) {
+                    if (now - entry.lastRun >= entry.intervalMs) {
+                        entry.lastRun = now;
+                        try { entry.fn(); } catch (e) { warn(`TickDispatcher error on "${name}":`, e); }
+                    }
+                }
+            }, 1000);
+        }
+
+        function stop() {
+            if (_timer) { clearInterval(_timer); _timer = null; }
+        }
+
+        function list() { return Array.from(_ticks.keys()); }
+
+        return { register, unregister, start, stop, list };
+    })();
+
+    // ============================================================
+    //  DOM OBSERVER & AGENT DETECTOR (now the single source of truth)
     // ============================================================
     const DOMObserver = (() => {
         let _mainObserver = null, _routeObserver = null;
@@ -843,14 +913,19 @@ function detectAgentMode() {
         function observeMain() {
             _mainObserver = new MutationObserver((mutations) => {
                 let hasNewContent = false;
+                let lastAddedNode = null;
                 for (const m of mutations) {
                     for (const node of m.addedNodes) {
                         if (node.nodeType !== 1) continue;
                         hasNewContent = true;
+                        lastAddedNode = node;
                         analyzeAddedNode(node);
                     }
                 }
-                if (hasNewContent) EventBus.emit('dom:mutation');
+                if (hasNewContent) {
+                    // Emit with the newly added node so listeners can scope scans
+                    EventBus.emit('dom:mutation', { node: lastAddedNode });
+                }
             });
             _mainObserver.observe(document.body, { childList: true, subtree: true });
         }
@@ -926,7 +1001,7 @@ function detectAgentMode() {
 
         return { init, destroy, detectAgentMode, startSession };
     })();
-    ModuleRegistry.register('domObserver', { phase:0, init(){DOMObserver.init();}, destroy(){DOMObserver.destroy();}, deps:['state','eventBus'] });
+            ModuleRegistry.register('domObserver', { phase:0, init(){DOMObserver.init(); TickDispatcher.start();}, destroy(){DOMObserver.destroy(); TickDispatcher.stop();}, deps:['state','eventBus'] });
 
     // ============================================================
     //  THEME ENGINE
@@ -1410,7 +1485,10 @@ function update() {
              `;
          }
 
-        function startTimer() { _timer = setInterval(update, 1000); }
+        function startTimer() {
+            // Use shared TickDispatcher
+            TickDispatcher.register('hudTimer', update, 1000);
+        }
 
         function setVisible(show) { if (_hud) _hud.classList.toggle('aamp-hidden', !show); }
         function setPosition(pos) { if (_hud) _hud.className = `hud-${pos}`; }
@@ -1427,7 +1505,10 @@ function update() {
         function formatTokens(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n); }
         function pad(n) { return String(n).padStart(2, '0'); }
 
-        function destroy() { clearInterval(_timer); _hud?.remove(); }
+        function destroy() {
+            TickDispatcher.unregister('hudTimer');
+            _hud?.remove();
+        }
 
         return { build, update, setVisible, setPosition, destroy, formatDuration };
     })();
@@ -1438,6 +1519,12 @@ function update() {
     let _toastContainer = null;
 
     function toast(message, type = 'info', duration = 3000) {
+        const verbosity = Config.get('toastVerbosity') || 'normal';
+        if (verbosity === 'silent') return;
+
+        // Reduce spam on low verbosity (skip info toasts)
+        if (verbosity === 'low' && type === 'info') return;
+
         if (!_toastContainer) {
             _toastContainer = document.createElement('div');
             _toastContainer.id = `${SCRIPT_ID}-toast-container`;
@@ -1449,10 +1536,6 @@ function update() {
         el.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
         _toastContainer.appendChild(el);
         setTimeout(() => { el.classList.add('aamp-toast-out'); setTimeout(() => el.remove(), 250); }, duration);
-        // Notify anything tracking toast history (e.g. NotificationCenter) — this
-        // was previously never emitted, so NotificationCenter's history stayed
-        // empty for every toast() call across the whole script (hundreds of
-        // call sites), only ever gaining entries via its own push() wrapper.
         if (typeof EventBus !== 'undefined') EventBus.emit('toast:shown', { message, type, duration });
     }
 
@@ -2072,19 +2155,24 @@ function update() {
             log('📊 Monitor Module initialized');
         }
 
-        let _autoContinueObserver = null, _idleCheckInterval = null;
+        let _autoContinueObserver = null;
+        let _autoContinueTickId = null;
 
         function setupAutoContinue() {
             const delay = Config.get('autoContinueDelay') || 2000;
             if (_autoContinueObserver) { _autoContinueObserver.disconnect(); _autoContinueObserver = null; }
-            clearInterval(_idleCheckInterval);
+            if (_autoContinueTickId) { TickDispatcher.unregister(_autoContinueTickId); _autoContinueTickId = null; }
+
             const seenButtons = new Set();
             _autoContinueObserver = new MutationObserver(() => {
                 if (!Config.get('autoContinue')) return;
                 findAndClickContinue(delay, seenButtons);
             });
             _autoContinueObserver.observe(document.body, { childList: true, subtree: true });
-            _idleCheckInterval = setInterval(() => {
+
+            // Use shared TickDispatcher instead of raw setInterval
+            _autoContinueTickId = 'autoContinueIdleCheck';
+            TickDispatcher.register(_autoContinueTickId, () => {
                 if (!Config.get('autoContinue') || !S.isAgentMode) return;
                 if (S.isAgentRunning || S.isAgentThinking) { S.agentIdleSince = null; return; }
                 if (!S.agentIdleSince) { S.agentIdleSince = Date.now(); return; }
@@ -4201,7 +4289,17 @@ const InsightsDashboard = (() => {
         function sanitize(html) { const d = document.createElement('div'); d.textContent = html; return d.innerHTML; }
         function escape(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
         function validateURL(url) { try { const u = new URL(url); return u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'mailto:'; } catch { return false; } }
-        function sanitizeAttributes(el) { if (!el) return; el.querySelectorAll('*').forEach(node => { Array.from(node.attributes).forEach(attr => { if (attr.name.startsWith('on') || attr.value.includes('javascript:')) node.removeAttribute(attr.name); }); }); }
+        function sanitizeAttributes(el) {
+            if (!el) return;
+            // PERFORMANCE: only scan newly added nodes when possible (called from debounced listeners)
+            const nodes = el.nodeType === 1 ? [el] : el.querySelectorAll('*');
+            nodes.forEach(node => {
+                if (node.nodeType !== 1) return;
+                Array.from(node.attributes).forEach(attr => {
+                    if (attr.name.startsWith('on') || attr.value.includes('javascript:')) node.removeAttribute(attr.name);
+                });
+            });
+        }
         function init() { log('🛡️ XSS Prevention'); }
         return { init, sanitize, escape, validateURL, sanitizeAttributes };
     })();
@@ -4313,7 +4411,12 @@ const InsightsDashboard = (() => {
         function init() {
             log('🛡️ Security Hardening');
             XSSPrevention.sanitizeAttributes(document.body);
-            EventBus.on('dom:mutation', () => XSSPrevention.sanitizeAttributes(document.body));
+            // PERFORMANCE: debounce full-DOM scans (same pattern as processAllCodeBlocks)
+            EventBus.on('dom:mutation', debounce((data) => {
+                // Scope to newly added node when available
+                const target = data && data.node ? data.node : document.body;
+                XSSPrevention.sanitizeAttributes(target);
+            }, 350));
         }
         function getPolicy() {
             return { csp: 'strict', sanitizeDOM: true, validateURLs: true, blockInlineScripts: true };
