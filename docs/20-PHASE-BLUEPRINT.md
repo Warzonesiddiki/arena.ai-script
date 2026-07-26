@@ -3,7 +3,7 @@
 **Platform**: Chrome Browser Extension (Manifest V3)  
 **Target Version**: v8.0 (Ultimate Vision)  
 **Total Subphases**: 100  
-**Last Updated**: 2026-07-27
+**Last Updated**: 2026-07-26
 
 ---
 
@@ -40,11 +40,28 @@
 | **0D** | Storage Layer v1 | Hybrid storage | `chrome.storage.local` + IndexedDB with LZ4 compression | 0A | Reliable persistence of 50MB+ data |
 | **0E** | Testing Foundation | Test infrastructure | Jest + Chrome extension testing utilities + GitHub Actions CI | 0A | `npm test` passes with >80% coverage |
 
+#### Phase 0 implementation status
+
+- **0A — Project Scaffolding: Complete (2026-07-26).** The repository builds a least-privilege Manifest V3 extension with TypeScript + webpack 5, an ephemeral ES-module service worker, native Side Panel, popup, options page, and a deliberately inert content-script entry point. `npm run build` validates the generated manifest and all referenced artifacts before the output is loaded unpacked in Chrome.
+- **0B — Core Utilities: Complete (2026-07-26).** `ModuleRegistry`, `EventBus v2`, `TickDispatcher`, and `buildModal()` are now independently tested TypeScript modules under `src/core/`.
+- **0E — Testing Foundation: Complete (2026-07-26).** Jest, a scoped Chrome API mock, and an 80% coverage floor for the ported foundation code are active. Publishing the GitHub Actions workflow is deferred until credentials with workflow-write permission are available.
+- **0C — Content Bridge: Complete (2026-07-26).** A schema-validated, HMAC-signed, replay-protected isolated-world content ↔ worker protocol now has an explicit safe DOM-operation allow list and adversarial unit tests. It exposes no page-facing message channel and fails closed when its ephemeral MV3 session is unavailable.
+- **0D — Storage Layer v1: Complete (2026-07-26).** A hybrid `chrome.storage.local` + IndexedDB storage layer now provides JSON-safe small values, LZ4-compressed large records, integrity checking, quota controls, repairable metadata indexing, and a 64 MiB raw-record cap.
+- **Implementation records:** [`PHASE-0A-IMPLEMENTATION.md`](PHASE-0A-IMPLEMENTATION.md), [`PHASE-0B-0E-IMPLEMENTATION.md`](PHASE-0B-0E-IMPLEMENTATION.md), [`PHASE-0C-IMPLEMENTATION.md`](PHASE-0C-IMPLEMENTATION.md), and [`PHASE-0D-IMPLEMENTATION.md`](PHASE-0D-IMPLEMENTATION.md).
+
 ---
 
 ### PHASE 1: STABILITY & OBSERVABILITY — Rock-Solid Base
 
 **Goal**: Establish reliability and debugging capabilities before complexity.
+
+**Implementation status:**
+- **1A — DOMObserver v2: Complete (2026-07-26).** `DomObserverV2` observes only a caller-provided Arena root, emits scoped mutation events, ignores extension/transient nodes, and rejects `document.body` observation.
+- **1B — TickDispatcher: Complete (2026-07-26).** Source-level regression guards prevent raw repeating timers or additional raw observers outside their designated central owners.
+- **1C — Error Recovery: Complete (2026-07-26).** Bounded retries, safe fallbacks, global error hooks, correlation-aware recovery events, and content-side user notification routing are active.
+- **1D — Observability Core: Complete (2026-07-26).** Structured, sanitized trace events with correlation IDs now cover worker lifecycle, scoped DOM events, and recovery actions.
+- **1E — Performance Tests: Complete (2026-07-26).** Mutation-rate and optional heap-sampling budgets have deterministic regression coverage.
+- **Implementation records:** [`PHASE-1A-1B-IMPLEMENTATION.md`](PHASE-1A-1B-IMPLEMENTATION.md) and [`PHASE-1C-1E-IMPLEMENTATION.md`](PHASE-1C-1E-IMPLEMENTATION.md).
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
@@ -60,6 +77,15 @@
 
 **Goal**: Deliver immediate value while preparing infrastructure for expensive features.
 
+**Implementation status:**
+- **2A — Side Panel: Complete (2026-07-26).** The Side Panel presents bounded, signed-bridge runtime state, safe status indicators, manual refresh, and settings quick action using the central TickDispatcher.
+- **2B — Command Palette 2.0: Complete (2026-07-26).** Deterministic lexical-semantic, fuzzy, frecency, and caller-scoped memory-node command discovery is available from the Side Panel.
+- **2C — Smart Notifications: Complete (2026-07-26).** Verbosity filtering, grouped history, and native `chrome.notifications` recovery fallback are active.
+- **2E — Cost Governance: Complete (2026-07-26).** A deterministic microdollar budget engine now hard-blocks over-budget per-workflow/per-agent reservations and emits projections/usage events.
+- **2D — Modal System: Complete (2026-07-26).** The Command Palette, the extension’s current modal surface, is consolidated on `buildModal()` with text-only dynamic rendering.
+
+**Implementation record:** [`PHASE-2D-3D-IMPLEMENTATION.md`](PHASE-2D-3D-IMPLEMENTATION.md).
+
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
 | **2A** | Side Panel | Persistent control panel | Real-time agent status + quick actions | 1A | Always-visible controls without popup |
@@ -73,6 +99,10 @@
 ### PHASE 3: LIGHT MULTI-AGENT (Max 3 Agents) — Controlled Introduction
 
 **Design Decision**: Maximum **3 agents** using **Orchestrator-Worker** pattern with strong guardrails.
+
+**Implementation status:**
+- **3A–3D: Complete (2026-07-26).** Deterministic fixed-role planning, typed worker contracts, bounded file-only context scopes, cost reservations, approval gates, 3-agent cap, and 12-handoff circuit breaker are implemented.
+- **3E: Planned.** No automatic agent tab launch is exposed before the approval-aware multi-agent dashboard exists.
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|

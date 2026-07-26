@@ -1,162 +1,132 @@
 # ⚡ Arena Agent Mode Pro
 
-> **v7.2.0** — Performance, UI/UX Overhaul & Polish  
-> Tampermonkey / Greasemonkey userscript enhancing [arena.ai](https://arena.ai) Agent Mode with 90+ powerful modules.
+> **v8.0.0 — Chrome Extension Foundation**
+>
+> A Manifest V3 Chrome extension for transparent, safety-first assistance in [Arena.ai](https://arena.ai) Agent Mode.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Userscript](https://img.shields.io/badge/Tampermonkey-Compatible-blue)](https://www.tampermonkey.net/)
-[![Version](https://img.shields.io/badge/version-7.2.0-brightgreen)](https://github.com/Warzonesiddiki/arena.ai-script)
+Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extension so it can offer durable background infrastructure, native browser surfaces, stronger safety boundaries, and—only after the foundation is complete—carefully governed multi-agent workflows.
 
----
+## Current implementation status
 
-## 🚀 Features
+**Phases 0 and 1 are complete.** The repository now builds an unpacked Manifest V3 extension with:
 
-### Core Enhancements
-- **ModuleRegistry** — 93+ modules with phase-based boot, dependency resolution, and error isolation
-- **Reactive State + EventBus v2** — Full pub/sub with wildcards, priorities, computed values
-- **Config v2** — Schema-driven settings with live watchers and migrations
-- **Agent Mode Detection** — Auto-activates on `/agent` routes with real-time tracking
+- TypeScript + webpack 5 build pipeline and ES-module service worker
+- Native Side Panel, popup, and options-page entry points
+- Narrow Arena.ai host permissions (`arena.ai` and its subdomains only)
+- Tested TypeScript ports of `ModuleRegistry`, `EventBus v2`, `TickDispatcher`, and `buildModal()`
+- Jest 30, a scoped Chrome API mock, an 80% coverage floor for the ported runtime, and a reproducible local CI command
+- A schema-validated, HMAC-signed, replay-protected Content Bridge that accepts no page-facing messages and permits only bounded snapshot/status DOM operations
+- Hybrid `chrome.storage.local` + IndexedDB storage with LZ4-compressed large records, integrity checks, quota controls, and repairable indexing
+- A single scoped DOM observer that never falls back to `document.body`, centralized timer/observer ownership, bounded recovery fallbacks, structured correlation tracing, and mutation/heap performance budgets
+- Deterministic microdollar cost governance with hard per-workflow/per-agent reservation gates and projections
+- Grouped, verbosity-governed recovery notifications with native Chrome notification fallback
+- Build-artifact manifest validation before an extension is loaded in Chrome
 
-### Productivity
-- **Command Palette** (Ctrl+K) — Fuzzy search, frecency ranking, category headers, match highlighting
-- **HUD** — Live session timer, turn/tool counts, drag-to-reposition + compact toggle
-- **Collapsible Tool Calls** + **Syntax Highlighter** + **Line Numbers**
-- **Prompt Templates** & **Workflow Macros**
-- **Floating TOC**, **Resizable Panes**, **Quick Actions Bar**
+The legacy v7.2 userscript remains at `arena-agent-mode-pro.user.js` while its capabilities are ported in blueprint order. The next work item is **Phase 2B: Command Palette 2.0**; no multi-agent feature is enabled yet.
 
-### Agent Intelligence
-- **Tool Timeline** & **Agent Tool Tracker**
-- **Session Playback** (replay any past session at variable speed)
-- **Session Freeze** (pause tracking without stopping the agent)
-- **Artifact Studio**, **Workspace Manager**, **Leaderboard Intelligence**
-- **Auto-Continue**, **Parallel Exec**, **Task Chains**, **Scheduled Jobs**
+## Blueprint and project documentation
 
-### Developer Tools
-- **Debugger Console** (eval sandbox)
-- **Terminal & Sandbox Inspector**
-- **Context Visualizer**, **Insights Dashboard**
-- **Plugin API** (`window.AAMP`)
-- **Multi-Tab Sync**, **Auto Backup**
+The implementation sequence and technical guardrails are documented in:
 
-### Polish & Safety
-- **XSS Prevention** + **Security Hardening**
-- **Accessibility Engine** (WCAG audits + fixes)
-- **Memory Leak Fixer** + **DOM Optimization**
-- **Benchmarks** with heap/DOM growth sampling
-- **Toast verbosity control** + **NotificationCenter history**
+- [20-Phase Zero-Compromise Blueprint](docs/20-PHASE-BLUEPRINT.md)
+- [Phase 3–6 Multi-Agent Technical Specification](docs/TECHNICAL-SPEC-PHASE-3-6.md)
+- [Phase 0A Implementation Record](docs/PHASE-0A-IMPLEMENTATION.md)
+- [Phase 0B & 0E Implementation Record](docs/PHASE-0B-0E-IMPLEMENTATION.md)
+- [Phase 0C Content Bridge Record](docs/PHASE-0C-IMPLEMENTATION.md)
+- [Phase 0D Storage Record](docs/PHASE-0D-IMPLEMENTATION.md)
+- [Phase 1A & 1B Record](docs/PHASE-1A-1B-IMPLEMENTATION.md)
+- [Phase 1C–1E Record](docs/PHASE-1C-1E-IMPLEMENTATION.md)
+- [Phase 2A Side Panel Record](docs/PHASE-2A-IMPLEMENTATION.md)
+- [Phase 2C Notification Record](docs/PHASE-2C-IMPLEMENTATION.md)
+- [Phase 2E Cost Governance Record](docs/PHASE-2E-IMPLEMENTATION.md)
+- [Documentation Index](docs/BLUEPRINT-INDEX.md)
 
----
+Key principles are deterministic coordination, minimum necessary context, observability before complexity, hard cost governance, and gradual rollout (a maximum of three agents in Phase 3 and five in Phase 6).
 
-## 📦 Installation
+## Development
 
-### Tampermonkey / Violentmonkey / Greasemonkey
-1. Install the userscript manager for your browser
-2. Click **Raw** on `arena-agent-mode-pro.user.js`
-3. Confirm installation
+### Prerequisites
 
-Or install directly:
-```
-https://raw.githubusercontent.com/Warzonesiddiki/arena.ai-script/main/arena-agent-mode-pro.user.js
-```
+- Node.js **20.19+** (the current dependency set is tested with Node 22)
+- Google Chrome **114+** for the Side Panel API
 
-### Development
+### Install and build
+
 ```bash
 git clone https://github.com/Warzonesiddiki/arena.ai-script.git
 cd arena.ai-script
 npm install
-npm test
+npm run build
 ```
 
----
+`npm run build` type-checks TypeScript, bundles every extension entry point, copies extension assets, and verifies that every manifest reference exists in `dist/`.
 
-## ⚙️ Configuration
+### Load the development extension
 
-Open settings with the **⚡** floating action button (bottom-right).
+1. Run `npm run build`.
+2. Open `chrome://extensions` in Chrome.
+3. Enable **Developer mode**.
+4. Select **Load unpacked** and choose this repository’s `dist/` directory.
+5. Open an `https://arena.ai/` page and use the extension toolbar action / Side Panel.
 
-Key toggles:
-- `enabled` — Master pause/resume
-- `a11yEnabled` — Accessibility audits on every mutation
-- `autoBackup` + `backupInterval`
-- Theme overrides via **Theme Editor**
+For development rebuilds:
 
-All settings are persisted via `GM_setValue` and migrate automatically.
+```bash
+npm run watch
+```
 
----
+Reload the unpacked extension in `chrome://extensions` after webpack emits a new build.
 
-## ⌨️ Keyboard Shortcuts
-
-| Shortcut       | Action                     |
-|----------------|----------------------------|
-| `Ctrl + K`     | Command Palette            |
-| `Ctrl + E`     | Export Conversation        |
-| `Ctrl + B`     | Toggle Focus Mode          |
-| `Ctrl + W`     | Toggle Workspace           |
-| `Ctrl + A`     | Show Artifacts             |
-| `Ctrl + S`     | Session Summary            |
-| `Ctrl + /`     | Show Shortcuts (console)   |
-| `Esc`          | Close any open panel       |
-
----
-
-## 🧪 Testing
-
-The project ships with a 4-stage test suite (`npm test`):
+## Testing
 
 ```bash
 npm test
 ```
 
-- Syntax check (`node --check`)
-- Smoke test (full boot in jsdom)
-- Tool-call loop regression
-- Pause/Resume regression
+The current suite runs:
 
-New behavior must be covered by regression tests following the existing patterns.
+1. The extension type-check, production build, and Manifest V3 artifact validation.
+2. Jest unit tests—with an 80% coverage threshold—for the ported core runtime and service worker.
+3. The retained v7.2 userscript syntax, smoke, and regression checks.
 
----
+Run `npm run ci` locally (or in an external CI provider) to perform the runtime dependency audit and full suite. The repository workflow file is intentionally deferred because this branch token cannot publish GitHub Actions workflow changes.
 
-## 🛠️ Architecture Highlights
+## Repository layout
 
-- **BMAD Method** — 102 documented sections under `bmad/`
-- **Phase-based boot** (0 → 5)
-- **Single shared DOMObserver** (consolidated from 6 observers)
-- **Debounced hot paths** (`dom:mutation`)
-- **Shared tick dispatcher** for timers
-- **buildModal()** helper + real CSS classes (replacing inline styles)
+```text
+extension/public/       Static extension assets copied unchanged to dist/
+  manifest.json         Manifest V3 declaration and least-privilege permissions
+  popup/                Popup HTML
+  sidepanel/            Native Side Panel HTML
+  options/              Options-page HTML
+src/
+  background/           Manifest V3 service worker entry
+  content/              Reserved Content Bridge entry (Phase 0C)
+  popup/                Popup behavior
+  sidepanel/            Side Panel behavior
+  options/              Options-page behavior
+  shared/               Shared extension-only helpers
+scripts/                Build cleanup and asset-copy steps
+tests/                  Extension artifact validation + legacy regression tests
+docs/                   Blueprint and implementation records
+arena-agent-mode-pro.user.js  Legacy v7.2 userscript, retained during migration
+```
 
----
+`dist/` is generated and intentionally ignored by Git; it is the only directory that should be loaded as an unpacked extension.
 
-## 📝 Changelog (v7.2.0)
+## Security posture in Phase 0A
 
-See full history in the script header or `Release.changelog()`.
+- The extension requests no blanket `<all_urls>` access.
+- The content script intentionally accepts no `window.postMessage` data and performs no page DOM changes.
+- The service worker stores no product state in memory; Manifest V3 workers may be suspended at any time. Phase 0D owns durable storage.
+- The service worker’s only current message is an internal extension-page health check, with a validated response shape.
 
-**v7.2.0** (current)
-- Performance: Debounced `XSSPrevention` & `AccessibilityEngine`, consolidated 6 MutationObservers
-- Performance: Shared tick dispatcher for 8 timers, heap/DOM growth sampling in Benchmarks
-- UI/UX: `buildModal()` helper, Command Palette frecency + categories + highlighting
-- UI/UX: Collapsible settings groups, search/filter, HUD compact toggle + drag
-- UI/UX: Toast verbosity setting, AccessibilityEngine now audits AAMP UI
-- Moved 50+ inline styles to real CSS classes
-- Created GitHub README
-- Bumped version + updated changelog
+The schema-validated, allow-listed Content Bridge and its tests are explicitly deferred to Phase 0C rather than silently creating a page-to-extension trust channel now.
 
----
+## Legacy userscript
 
-## 🤝 Contributing
+The v7.2.0 userscript is still available for compatibility while migration proceeds. It is not the v8 runtime and should not receive new v8 capabilities. Its existing regression suite remains in CI coverage until the corresponding extension modules are ported and validated.
 
-Pull requests welcome! Please:
-1. Keep `npm test` green
-2. Add regression tests for new behavior
-3. Update `bmad/sections/` when following BMAD format
-4. Increment `SCRIPT_VERSION` and `Release.changelog()`
-
----
-
-## 📜 License
+## License
 
 MIT © Arena Agent Mode Pro contributors
-
----
-
-**Made with ❤️ for the Arena.ai community**  
-*93 modules • 5 phases • Zero compromises*
