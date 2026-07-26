@@ -15,7 +15,10 @@
     "watch": "npm run clean && npm run copy:assets && webpack --mode development --watch",
     "test:extension": "npm run build",
     "test:legacy": "node --check arena-agent-mode-pro.user.js && node tests/smoke.js && node tests/regression-toolcall-loop.js && node tests/regression-pause-toggle.js",
-    "test": "npm run test:extension && npm run test:legacy"
+    "test": "npm run test:extension && npm run test:unit && npm run test:legacy",
+    "test:unit": "jest --coverage --runInBand",
+    "audit:runtime": "npm audit --omit=dev",
+    "ci": "npm run audit:runtime && npm test"
   },
   "repository": {
     "type": "git",
@@ -35,7 +38,11 @@
   "homepage": "https://github.com/Warzonesiddiki/arena.ai-script#readme",
   "devDependencies": {
     "@types/chrome": "^0.1.31",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
     "jsdom": "^29.0.0",
+    "ts-jest": "^29.4.12",
     "ts-loader": "^9.5.4",
     "typescript": "^5.8.3",
     "webpack": "^5.98.0",

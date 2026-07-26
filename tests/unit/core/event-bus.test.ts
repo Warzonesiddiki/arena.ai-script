@@ -1,0 +1,96 @@
+import { EventBus } from '../../../src/core/event-bus';
+
+interface Events {
+  'agent:start': { id: string };
+  'agent:result': { id: string; ok: boolean };
+  boot: { version: string };
+}
+
+const diagnostics = (): { warn: jest.Mock } => ({ warn: jest.fn() });
+
+describe('EventBus v2', () => {
+  it('honours priority and exact/namespace/global wildcard listeners', () => {
+    const calls: string[] = [];
+    const bus = new EventBus<Events>();
+
+    bus.on('*', () => calls.push('global'));
+    bus.on('agent:*', () => calls.push('namespace'), { priority: 3 });
+    bus.on('agent:start', ({ id }) => calls.push(`exact:${id}`), { priority: 5 });
+
+    bus.emit('agent:start', { id: 'agent-1' });
+
+    expect(calls).toEqual(['exact:agent-1', 'namespace', 'global']);
+    expect(bus.getStats('agent:start')).toBe(1);
+    expect(bus.getStats()).toEqual({ 'agent:start': 1 });
+  });
+
+  it('removes only each executed one-shot listener and supports unsubscription', () => {
+    const bus = new EventBus<Events>();
+    const first = jest.fn();
+    const second = jest.fn();
+    const persistent = jest.fn();
+
+    bus.once('boot', first);
+    bus.once('boot', second);
+    const unsubscribe = bus.on('boot', persistent);
+
+    bus.emit('boot', { version: '8.0.0' });
+    unsubscribe();
+    bus.emit('boot', { version: '8.0.1' });
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(persistent).toHaveBeenCalledTimes(1);
+  });
+
+  it('isolates synchronous and rejected asynchronous handler failures', async () => {
+    const reporter = diagnostics();
+    const bus = new EventBus<Events>(reporter);
+    const healthy = jest.fn();
+
+    bus.on('boot', () => {
+      throw new Error('sync failure');
+    });
+    bus.on('boot', async () => {
+      throw new Error('async failure');
+    });
+    bus.on('boot', healthy);
+
+    bus.emit('boot', { version: '8.0.0' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(healthy).toHaveBeenCalledTimes(1);
+    expect(reporter.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('awaits async listeners in priority order without breaking after an error', async () => {
+    const reporter = diagnostics();
+    const bus = new EventBus<Events>(reporter);
+    const calls: string[] = [];
+
+    bus.on('agent:result', async () => calls.push('low'), { priority: 1 });
+    bus.on('agent:result', async () => {
+      calls.push('high');
+      throw new Error('review failed');
+    }, { priority: 5 });
+
+    await bus.emitAsync('agent:result', { id: 'agent-1', ok: true });
+
+    expect(calls).toEqual(['high', 'low']);
+    expect(reporter.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears listeners and resets counters', () => {
+    const bus = new EventBus<Events>();
+    const listener = jest.fn();
+    bus.on('boot', listener);
+    bus.emit('boot', { version: '8.0.0' });
+    bus.clear('boot');
+    bus.emit('boot', { version: '8.0.1' });
+    bus.resetStats();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(bus.getStats()).toEqual({});
+  });
+});

@@ -26,8 +26,8 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => logLifecycle('browser startup'));
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-  if (!isHealthCheck(message)) return;
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id || !isHealthCheck(message)) return;
 
   sendResponse({
     ok: true,
@@ -42,3 +42,6 @@ function isHealthCheck(message: unknown): message is { type: typeof HEALTH_CHECK
     && 'type' in message
     && (message as { type?: unknown }).type === HEALTH_CHECK_MESSAGE;
 }
+
+// Marks this lifecycle entry point as an ES module for TypeScript and MV3.
+export {};
