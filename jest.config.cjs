@@ -18,6 +18,7 @@ module.exports = {
     'src/governance/**/*.ts',
     'src/notifications/**/*.ts',
     'src/commands/**/*.ts',
+    'src/orchestration/**/*.ts',
     '!src/core/diagnostics.ts',
   ],
   coverageDirectory: '<rootDir>/coverage',

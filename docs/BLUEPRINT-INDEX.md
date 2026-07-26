@@ -21,13 +21,14 @@ This folder contains the complete planning and technical documentation for the p
 | `PHASE-2B-IMPLEMENTATION.md` | Phase 2B deterministic command palette and scoped memory-search record | ✅ Complete |
 | `PHASE-2C-IMPLEMENTATION.md` | Phase 2C grouped native-notification and verbosity record | ✅ Complete |
 | `PHASE-2E-IMPLEMENTATION.md` | Phase 2E deterministic cost-budget and reservation record | ✅ Complete |
+| `PHASE-2D-3D-IMPLEMENTATION.md` | Phase 2D modal consolidation and Phase 3A–3D controlled-orchestration record | ✅ Complete |
 
 ## Blueprint Summary
 
 - **Total Phases**: 20
 - **Total Subphases**: 100
-- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2C — UX Foundation ✅; Phase 2E — Cost Governance ✅
-- **Next Milestone**: Phase 2D — Modal System
+- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3D — Controlled Orchestration Foundation ✅
+- **Next Milestone**: Phase 3E — Multi-Agent UI
 - **Platform**: Chrome Browser Extension (Manifest V3)
 - **Key Focus Areas**:
   - Gradual Multi-Agent rollout (Phase 3 → Phase 6)

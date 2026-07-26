@@ -82,7 +82,9 @@
 - **2B — Command Palette 2.0: Complete (2026-07-26).** Deterministic lexical-semantic, fuzzy, frecency, and caller-scoped memory-node command discovery is available from the Side Panel.
 - **2C — Smart Notifications: Complete (2026-07-26).** Verbosity filtering, grouped history, and native `chrome.notifications` recovery fallback are active.
 - **2E — Cost Governance: Complete (2026-07-26).** A deterministic microdollar budget engine now hard-blocks over-budget per-workflow/per-agent reservations and emits projections/usage events.
-- **2D: Planned.** See Phase 2 implementation records in `docs/`.
+- **2D — Modal System: Complete (2026-07-26).** The Command Palette, the extension’s current modal surface, is consolidated on `buildModal()` with text-only dynamic rendering.
+
+**Implementation record:** [`PHASE-2D-3D-IMPLEMENTATION.md`](PHASE-2D-3D-IMPLEMENTATION.md).
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
@@ -97,6 +99,10 @@
 ### PHASE 3: LIGHT MULTI-AGENT (Max 3 Agents) — Controlled Introduction
 
 **Design Decision**: Maximum **3 agents** using **Orchestrator-Worker** pattern with strong guardrails.
+
+**Implementation status:**
+- **3A–3D: Complete (2026-07-26).** Deterministic fixed-role planning, typed worker contracts, bounded file-only context scopes, cost reservations, approval gates, 3-agent cap, and 12-handoff circuit breaker are implemented.
+- **3E: Planned.** No automatic agent tab launch is exposed before the approval-aware multi-agent dashboard exists.
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
