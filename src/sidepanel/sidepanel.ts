@@ -1,3 +1,4 @@
+import { openCommandPalette } from '../commands/command-palette-modal';
 import { TickDispatcher } from '../core/tick-dispatcher';
 
 interface RuntimeStatusResponse {
@@ -13,6 +14,7 @@ interface RuntimeStatusResponse {
 }
 
 const refreshButton = document.getElementById('refresh-status') as HTMLButtonElement | null;
+const commandButton = document.getElementById('open-command-palette') as HTMLButtonElement | null;
 const statusText = document.getElementById('sidepanel-status');
 const indicator = document.getElementById('bridge-indicator');
 const arenaMode = document.getElementById('arena-mode');
@@ -21,6 +23,15 @@ const arenaUpdated = document.getElementById('arena-updated');
 const ticks = new TickDispatcher({ cadenceMs: 1_000 });
 
 refreshButton?.addEventListener('click', () => { void refreshStatus(); });
+commandButton?.addEventListener('click', () => {
+  openCommandPalette(document, [
+    { id: 'status.refresh', title: 'Refresh status', description: 'Update scoped Arena connection status', category: 'Status' },
+    { id: 'settings.open', title: 'Open settings', description: 'Configure extension preferences', category: 'Extension', keywords: ['preferences'] },
+  ], (commandId) => {
+    if (commandId === 'status.refresh') void refreshStatus();
+    if (commandId === 'settings.open') window.open('../options/options.html', '_blank', 'noopener');
+  });
+});
 ticks.register('sidepanel-status', () => { void refreshStatus(); }, 1_000);
 ticks.start();
 window.addEventListener('pagehide', () => ticks.stop(), { once: true });
