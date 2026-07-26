@@ -2,10 +2,12 @@
 
 ## Status: ✅ COMPLETE
 
-### Key Deliverables
-- Schema-driven settings panel auto-renderer
-- Tab→group mapping with `_TAB_GROUPS`
-- Type-aware control rendering (boolean/number/string/enum)
-- Eliminated 210 lines of hardcoded HTML
-- New config keys auto-appear in UI
-- **Syntax:** PASS
+### Summary
+Schema-driven settings UI: auto-renders form controls (toggles, number ranges, selects, textareas) directly from CONFIG_SCHEMA, grouped by category, replacing what used to be 330+ lines of hand-written HTML.
+
+### Prior documentation status (before this backfill)
+> COMPLETE (Schema-driven)
+
+### Verification
+- **Syntax:** PASS (`node --check`)
+- **Runtime:** PASS (`tests/smoke.js` jsdom boot harness, module reaches 'ready' state)

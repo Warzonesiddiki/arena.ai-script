@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Arena Agent Mode Pro
 // @namespace    https://arena.ai/
-// @version      7.0.0
-// @description  v7.0 · ModuleRegistry Architecture · Phase-Based Boot · Error Isolation · Agent Mode Pro
+// @version      7.1.1
+// @description  v7.1 · Critical bugfix pass (infinite tool-call loop, duplicate init, dead modules) · ModuleRegistry Architecture · Phase-Based Boot · Error Isolation · Agent Mode Pro
 // @author       Arena Agent Mode Pro
 // @match        https://arena.ai/*
 // @match        https://*.arena.ai/*
@@ -18,8 +18,8 @@
     'use strict';
 
     const SCRIPT_ID      = 'aamp';
-    const SCRIPT_VERSION = '7.0.0';
-    const SCRIPT_NAME    = 'Arena Agent Mode Pro (v7.0 Engine Refactored)';
+    const SCRIPT_VERSION = '7.1.1';
+    const SCRIPT_NAME    = 'Arena Agent Mode Pro (v7.1 Bugfix Pass)';
 
     // ============================================================
     //  ███████╗██╗██╗  ██╗███████╗██████╗     ██╗   ██╗████████╗██╗██╗     ███████╗
@@ -102,6 +102,19 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    /* ── CLASSIFY TOOL-CALL NODE (shared by UIEnhancer / DOMObserver / trackers) ── */
+    function classifyToolNode(node) {
+        const cls = (node && node.className) || '';
+        const text = (node && (node.textContent || '')) || '';
+        const hay = `${cls} ${text}`.toLowerCase();
+        if (/\bsearch\b/.test(hay)) return 'search';
+        if (/\bbash\b|\bterminal\b|\$\s/.test(hay)) return 'bash';
+        if (/\bwrite\b|\bedit\b/.test(hay)) return 'write';
+        if (/\bimage\b/.test(hay)) return 'image';
+        if (/\bfetch\b|\bhttp/.test(hay)) return 'fetch';
+        return 'generic';
     }
 
     /* ── MAKE DRAGGABLE ────────────────────────────────────────── */
@@ -428,6 +441,12 @@
         sessionBookmarks: { type:'boolean', default:true, group:'persistence' },
         settingsPanelOpen: { type:'boolean', default:false, group:'internal' },
         settingsPanelPos: { type:'object', default:{x:null,y:null}, group:'internal' },
+        autoBackup: { type:'boolean', default:false, group:'persistence', description:'Periodically back up session data to script storage' },
+        backupInterval: { type:'number', default:300000, min:60000, max:3600000, step:60000, group:'persistence', description:'Auto-backup interval in ms' },
+        enabled: { type:'boolean', default:true, group:'internal', description:'Master pause switch — when false, AAMP stops tracking/reacting to page activity' },
+        a11yEnabled: { type:'boolean', default:false, group:'internal', description:'Run the AccessibilityEngine audit on every DOM mutation (can be noisy on busy pages)' },
+        accentColor: { type:'string', default:'', group:'appearance', description:'Custom accent color override (Theme Editor)' },
+        bgColor: { type:'string', default:'', group:'appearance', description:'Custom background color override (Theme Editor)' },
     };
 
     const DEFAULT_CONFIG = {};
@@ -766,7 +785,9 @@
                 return true;
             }
         });
-        return { store, watch, unwatch, compute, reset, batch, snapshot, getHistory, exportState, importState };
+        function getInitial(key) { return key === undefined ? { ..._initial } : _initial[key]; }
+
+        return { store, watch, unwatch, compute, reset, batch, snapshot, getHistory, exportState, importState, getInitial };
     })();
     ModuleRegistry.register('state', { phase:0, init(){log('🗄️ State v2');}, deps:['eventBus'] });
 
@@ -777,6 +798,7 @@
     // ============================================================
     const DOMObserver = (() => {
         let _mainObserver = null, _routeObserver = null;
+        let _pendingTool = null; // { node, type, startedAt } — the most recent tool call awaiting a completion signal
 
 function detectAgentMode() {
              const url = window.location.href;
@@ -834,10 +856,26 @@ function detectAgentMode() {
         }
 
         function analyzeAddedNode(node) {
+            if (!Config.get('enabled')) return;
+            if (typeof SessionFreeze !== 'undefined' && SessionFreeze.isFrozen && SessionFreeze.isFrozen()) return;
+            // Ignore AAMP's own injected UI (settings panel, toasts, collapsible
+            // tool-call wrappers, etc.) so that our own DOM writes don't get
+            // misread as new agent activity — this previously caused an
+            // infinite mutation loop: wrapToolCall() reparents a tool-call node
+            // into a new wrapper <div>, that reparenting is itself observed as
+            // a mutation, which (via querySelector) matched the *nested*
+            // original node and re-triggered wrapToolCall() on the wrapper,
+            // forever, freezing the tab.
+            if (node.id && String(node.id).startsWith(SCRIPT_ID)) return;
+            if (node.closest && node.closest(`[id^="${SCRIPT_ID}"], .aamp-collapsible-wrap, .aamp-collapsible-header, .aamp-collapsible-body`)) return;
             if (node.matches) {
-                if (node.matches('[class*="tool-call"], [class*="function-call"]')
-                    || node.querySelector('[class*="tool-call"], [class*="function-call"]')) {
+                if (node.matches('[class*="tool-call"]:not([data-aamp-wrapped]), [class*="function-call"]:not([data-aamp-wrapped])')
+                    || node.querySelector('[class*="tool-call"]:not([data-aamp-wrapped]), [class*="function-call"]:not([data-aamp-wrapped])')) {
                     S.toolCallCount++; EventBus.emit('agent:toolCall', { node });
+                    // If a previous tool call was still "open", consider it completed now
+                    // that a new one has started, and emit its timing/classification.
+                    completePendingTool();
+                    _pendingTool = { node, type: classifyToolNode(node), text: node.textContent || '', startedAt: Date.now() };
                 }
                 if (node.matches('pre, [class*="code-block"]')) EventBus.emit('dom:codeBlock', { node });
                 if (node.matches('[class*="think"], [class*="loading"], [class*="generating"]')) {
@@ -845,10 +883,23 @@ function detectAgentMode() {
                 }
                 if (node.matches('[class*="assistant"], [data-role="assistant"]')) {
                     S.isAgentThinking = false; S.turnCount++; S.lastAgentActivity = Date.now();
+                    completePendingTool();
                     EventBus.emit('agent:response', { node, turn: S.turnCount });
                 }
                 if (node.matches('[class*="error"], [class*="Error"]')) { S.errorCount++; EventBus.emit('agent:error', { node }); }
             }
+        }
+
+        // Marks the currently-pending tool call as finished and emits
+        // 'agent:toolTracked' with elapsed timing + classification so that
+        // ToolTiming, AgentToolTracker, TerminalInspector, LeaderboardIntel, etc.
+        // (all of which listen for this event) actually receive data.
+        function completePendingTool() {
+            if (!_pendingTool) return;
+            const { node, type, text, startedAt } = _pendingTool;
+            const elapsed = Date.now() - startedAt;
+            _pendingTool = null;
+            EventBus.emit('agent:toolTracked', { tool: type, type, node, text, elapsed });
         }
 
         function scanForMessages() {
@@ -856,15 +907,22 @@ function detectAgentMode() {
             if (msgs.length !== S.messages.length) { S.messages = Array.from(msgs); EventBus.emit('messages:updated', { count: msgs.length }); }
         }
 
-        function updateSessionElapsed() { if (S.sessionStart) S.sessionElapsed = Math.floor((Date.now() - S.sessionStart) / 1000); }
+        function updateSessionElapsed() { if (S.sessionStart && !(typeof SessionFreeze !== 'undefined' && SessionFreeze.isFrozen && SessionFreeze.isFrozen())) S.sessionElapsed = Math.floor((Date.now() - S.sessionStart) / 1000); }
 
         function init() {
             observeMain(); observeRoute(); detectAgentMode();
             window.addEventListener('popstate', () => setTimeout(detectAgentMode, 300));
-            setInterval(() => { if (S.isAgentMode) { scanForMessages(); updateSessionElapsed(); SessionRecovery.save(); } }, 10000);
+            setInterval(() => {
+                if (S.isAgentMode) {
+                    scanForMessages(); updateSessionElapsed(); SessionRecovery.save();
+                    // Flush a stale pending tool call so timing/tracking doesn't get stuck
+                    // if the agent never sends a following response (e.g. it's still running).
+                    if (_pendingTool && (Date.now() - _pendingTool.startedAt) > 30000) completePendingTool();
+                }
+            }, 10000);
         }
 
-        function destroy() { _mainObserver?.disconnect(); _routeObserver?.disconnect(); }
+        function destroy() { completePendingTool(); _mainObserver?.disconnect(); _routeObserver?.disconnect(); }
 
         return { init, destroy, detectAgentMode, startSession };
     })();
@@ -881,6 +939,13 @@ function detectAgentMode() {
             const theme = THEMES[themeKey] || THEMES.default;
             let css = ':root {\n';
             for (const [k, v] of Object.entries(theme.vars)) { css += `  ${k}: ${v};\n`; }
+            // Layer the Theme Editor's custom accent/background overrides (if set)
+            // on top of the base theme. These were previously saved to Config but
+            // never actually applied anywhere — the color pickers had no effect.
+            const accentOverride = Config.get('accentColor');
+            const bgOverride = Config.get('bgColor');
+            if (accentOverride) css += `  --aamp-accent: ${accentOverride};\n`;
+            if (bgOverride) css += `  --aamp-surface: ${bgOverride};\n`;
             css += '}\n';
             if (!_styleEl) { _styleEl = document.createElement('style'); _styleEl.id = STYLE_ID; document.head.appendChild(_styleEl); }
             _styleEl.textContent = css;
@@ -901,6 +966,7 @@ function detectAgentMode() {
                 if (key === 'theme') applyTheme(value);
                 if (key === 'customCSS') applyCustomCSS(value);
                 if (key === 'fontSize') document.documentElement.style.setProperty('--aamp-font-size', `${value}px`);
+                if (key === 'accentColor' || key === 'bgColor') applyTheme(Config.get('theme'));
             });
         }
 
@@ -1147,7 +1213,7 @@ function detectAgentMode() {
                 </div>
                 <div class="aamp-panel-footer">
                     <div class="aamp-panel-footer-left"><span class="aamp-version-badge"><span class="aamp-status-dot"></span> Active on arena.ai</span></div>
-                    <div style="display:flex;gap:6px;"><button class="aamp-btn aamp-btn-secondary" id="${SCRIPT_ID}-toggle-enabled">⏸ Pause</button><button class="aamp-btn aamp-btn-primary" id="${SCRIPT_ID}-close-footer">Done ✓</button></div>
+                    <div style="display:flex;gap:6px;"><button class="aamp-btn aamp-btn-secondary" id="${SCRIPT_ID}-toggle-enabled">${Config.get('enabled') === false ? '▶ Resume' : '⏸ Pause'}</button><button class="aamp-btn aamp-btn-primary" id="${SCRIPT_ID}-close-footer">Done ✓</button></div>
                 </div>
             `;
             document.body.appendChild(_panel);
@@ -1383,6 +1449,11 @@ function update() {
         el.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
         _toastContainer.appendChild(el);
         setTimeout(() => { el.classList.add('aamp-toast-out'); setTimeout(() => el.remove(), 250); }, duration);
+        // Notify anything tracking toast history (e.g. NotificationCenter) — this
+        // was previously never emitted, so NotificationCenter's history stayed
+        // empty for every toast() call across the whole script (hundreds of
+        // call sites), only ever gaining entries via its own push() wrapper.
+        if (typeof EventBus !== 'undefined') EventBus.emit('toast:shown', { message, type, duration });
     }
 
     // ============================================================
@@ -1647,7 +1718,11 @@ function update() {
 
         return { init, saveCurrentSession, getAllSessions, deleteSession, deleteSessions, searchSessions, exportAllSessions, importSessions, clearHistory, getStorageInfo, generateId };
     })();
-    ModuleRegistry.register('storage', { phase:2, init(){log('💾 Storage Engine v3'); StorageEngine.init();}, deps:['config','export'] });
+    // NOTE: StorageEngine is registered with ModuleRegistry once, in the main
+    // boot init() as 'storageEngine' (phase 1). A duplicate legacy 'storage'
+    // registration (phase 2) used to live here from the pre-refactor version —
+    // removed to stop StorageEngine.init() (and its indexedDB.open() call)
+    // from running twice per page load.
 
     // ============================================================
     //  UI ENHANCER
@@ -1777,12 +1852,7 @@ function update() {
         }
 
         function guessToolType(node) {
-            const cls = node.className || '';
-            if (cls.includes('search')) return 'search';
-            if (cls.includes('bash') || cls.includes('terminal')) return 'bash';
-            if (cls.includes('write')) return 'write';
-            if (cls.includes('image')) return 'image';
-            return 'generic';
+            return classifyToolNode(node);
         }
 
         function initSmartScroll() {
@@ -1794,7 +1864,7 @@ function update() {
                 if (!scrollContainer) return;
                 userScrolledUp = (scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight) > 80;
             }
-            function scrollToBottom() { if (scrollContainer && !userScrolledUp) scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' }); }
+            function scrollToBottom() { if (scrollContainer && !userScrolledUp && typeof scrollContainer.scrollTo === 'function') scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' }); else if (scrollContainer && !userScrolledUp) scrollContainer.scrollTop = scrollContainer.scrollHeight; }
             EventBus.on('agent:response', () => { if (!scrollContainer) scrollContainer = findSC(); scrollToBottom(); });
             EventBus.on('dom:mutation', () => { if (!scrollContainer) scrollContainer = findSC(); if (scrollContainer && !userScrolledUp) scrollToBottom(); });
             setTimeout(() => { scrollContainer = findSC(); if (scrollContainer) scrollContainer.addEventListener('scroll', onScroll, { passive: true }); }, 2000);
@@ -1938,8 +2008,9 @@ function update() {
         function close() { if (_el) _el.style.display = 'none'; _open = false; }
         function toggle() { _open ? close() : open(); }
         function isOpen() { return _open; }
+        function init() { log('⚡ Command Palette'); }
 
-        return { open, close, toggle, isOpen, addCommand };
+        return { init, open, close, toggle, isOpen, addCommand };
     })();
 
     // ============================================================
@@ -1969,8 +2040,9 @@ function update() {
         }
 
         function getAll() { return TEMPLATES; }
+        function init() { log('📝 Prompt Templates'); }
 
-        return { inject, getAll };
+        return { init, inject, getAll };
     })();
 
     // ============================================================
@@ -2319,11 +2391,89 @@ const QuickActionsBar = (() => {
     })();
 
     const ModelFingerprint = (() => {
-        function init() { log('🔬 Fingerprinting'); }
-        function analyzeResponse(node) { return { model: 'unknown', tokens: 0 }; }
-        function getGuess() { return null; }
-        function getScores() { return {}; }
-        function reset() {}
+        // Lightweight heuristic fingerprinting: scores accumulated response text
+        // against stylistic signatures commonly associated with major model
+        // families. This is a best-effort guess (no accurate way to know the
+        // true backing model from page text alone) — surfaced as a confidence
+        // score, not a certainty.
+        const SIGNATURES = {
+            'GPT-family': [
+                { re: /\bcertainly!?\b/i, w: 2 },
+                { re: /\bi'?d be happy to\b/i, w: 2 },
+                { re: /^\s*-\s+\*\*/m, w: 1 },
+                { re: /\bas an ai\b/i, w: 1 },
+                { re: /```[a-z]*\n/i, w: 0.5 },
+            ],
+            'Claude-family': [
+                { re: /\bi (?:should|want to|need to) (?:note|clarify|mention)\b/i, w: 2 },
+                { re: /\blet me\b/i, w: 1 },
+                { re: /\bi apologize\b/i, w: 1.5 },
+                { re: /^\s*\d+\.\s+\*\*/m, w: 1 },
+                { re: /\bhappy to help\b/i, w: 1 },
+            ],
+            'Gemini-family': [
+                { re: /\bhere'?s a\b/i, w: 1 },
+                { re: /\bi can help with that\b/i, w: 1.5 },
+                { re: /\*\*(?:summary|overview)\*\*/i, w: 1 },
+                { re: /\bin summary\b/i, w: 1 },
+            ],
+            'Open-weights (Llama/Qwen/etc.)': [
+                { re: /\[\/?INST\]/, w: 3 },
+                { re: /<\|.*?\|>/, w: 3 },
+                { re: /\bassistant:\s*$/im, w: 2 },
+            ],
+        };
+
+        const _scores = {};
+        for (const key of Object.keys(SIGNATURES)) _scores[key] = 0;
+        let _samples = 0;
+
+        function init() {
+            log('🔬 Fingerprinting');
+            EventBus.on('agent:response', ({ node }) => {
+                if (node) analyzeResponse(node);
+            });
+            CommandPalette.addCommand({
+                icon: '🔬', label: 'Model Fingerprint Guess', tags: 'model fingerprint detect ai',
+                action: () => {
+                    const guess = getGuess();
+                    if (!guess || guess.model === 'unknown') { toast('Not enough data yet to guess the model', 'info'); return; }
+                    toast(`Best guess: ${guess.model} (${guess.confidence}% confidence, ${guess.samples} samples)`, 'info', 6000);
+                },
+            });
+        }
+
+        function analyzeResponse(node) {
+            const text = (node && (node.textContent || '')) || '';
+            const tokens = Math.max(0, Math.round(text.split(/\s+/).filter(Boolean).length * 1.3));
+            if (!text.trim()) return { model: 'unknown', tokens };
+            _samples++;
+            for (const [model, patterns] of Object.entries(SIGNATURES)) {
+                let hit = 0;
+                for (const p of patterns) { if (p.re.test(text)) hit += p.w; }
+                _scores[model] += hit;
+            }
+            EventBus.emit('modelFingerprint:sample', { tokens, scores: { ..._scores } });
+            return { model: getGuess()?.model || 'unknown', tokens };
+        }
+
+        function getScores() { return { ..._scores }; }
+
+        function getGuess() {
+            if (_samples === 0) return null;
+            const entries = Object.entries(_scores).sort((a, b) => b[1] - a[1]);
+            const [topModel, topScore] = entries[0];
+            const totalScore = entries.reduce((sum, [, s]) => sum + s, 0);
+            if (totalScore <= 0) return { model: 'unknown', confidence: 0, samples: _samples };
+            const confidence = Math.round((topScore / totalScore) * 100);
+            return { model: topModel, confidence, samples: _samples };
+        }
+
+        function reset() {
+            for (const key of Object.keys(_scores)) _scores[key] = 0;
+            _samples = 0;
+        }
+
         return { init, analyzeResponse, getGuess, getScores, reset };
     })();
 
@@ -2370,22 +2520,139 @@ const QuickActionsBar = (() => {
 
     const SessionDiff = (() => {
         let _el = null;
-        function init() { log('⇄ Diff'); }
+        let _sessions = [];
+        let _idA = null, _idB = null;
+
+        function init() {
+            log('⇄ Diff');
+            CommandPalette.addCommand({ icon: '⇄', label: 'Compare Sessions (Diff)', tags: 'diff compare sessions history', action: () => open() });
+        }
+
         function open() {
             if (!_el) build();
             _el.classList.add('open');
+            refresh();
         }
         function close() { if (_el) _el.classList.remove('open'); }
         function toggle() { _el ? (_el.classList.contains('open') ? close() : open()) : open(); }
-        function openWithSession() { open(); }
+
+        // Opens the diff panel pre-selecting a specific past session against the
+        // current live session (or the most recent other saved session if the
+        // live session hasn't been saved yet).
+        async function openWithSession(id) {
+            if (!_el) build();
+            await refresh();
+            const hasCurrent = _sessions.some(s => s.id === '__current__');
+            _idA = id || null;
+            _idB = hasCurrent ? '__current__' : (_sessions.find(s => s.id !== id)?.id || null);
+            renderDiff();
+            _el.classList.add('open');
+        }
+
+        function currentSessionSnapshot() {
+            return {
+                id: '__current__', timestamp: Date.now(), url: window.location.href,
+                turns: S.turnCount, toolCalls: S.toolCallCount, duration: S.sessionElapsed,
+                tokenEstimate: S.tokenEstimate, errors: S.errorCount,
+                messages: Array.isArray(S.messages) ? S.messages : [], agentSteps: S.agentSteps || [],
+            };
+        }
+
+        async function refresh() {
+            const stored = (typeof StorageEngine !== 'undefined') ? await StorageEngine.getAllSessions() : [];
+            const live = currentSessionSnapshot();
+            _sessions = S.isAgentMode && S.turnCount > 0 ? [live, ...stored] : stored;
+            if (_idA === null && _sessions[1]) _idA = _sessions[1].id;
+            if (_idB === null && _sessions[0]) _idB = _sessions[0].id;
+            renderPicker();
+            renderDiff();
+        }
+
+        function metricRow(label, a, b, formatFn) {
+            const fmt = formatFn || (v => String(v ?? 0));
+            const av = a ?? 0, bv = b ?? 0;
+            const delta = bv - av;
+            const deltaStr = delta === 0 ? '—' : (delta > 0 ? `+${fmt(delta)}` : `${fmt(delta)}`);
+            const deltaColor = delta === 0 ? 'var(--aamp-text3)' : (delta > 0 ? 'var(--aamp-success)' : 'var(--aamp-error)');
+            return `<tr><td style="padding:6px 10px;color:var(--aamp-text2);">${label}</td><td style="padding:6px 10px;text-align:right;color:var(--aamp-text);">${fmt(av)}</td><td style="padding:6px 10px;text-align:right;color:var(--aamp-text);">${fmt(bv)}</td><td style="padding:6px 10px;text-align:right;font-weight:600;color:${deltaColor};">${deltaStr}</td></tr>`;
+        }
+
+        function diffMessages(a, b) {
+            const aMsgs = (a.messages || []).map(m => (typeof m === 'string' ? m : (m?.textContent || m?.text || ''))).filter(Boolean);
+            const bMsgs = (b.messages || []).map(m => (typeof m === 'string' ? m : (m?.textContent || m?.text || ''))).filter(Boolean);
+            const aSet = new Set(aMsgs);
+            const bSet = new Set(bMsgs);
+            const onlyInA = aMsgs.filter(m => !bSet.has(m));
+            const onlyInB = bMsgs.filter(m => !aSet.has(m));
+            return { onlyInA, onlyInB, sameCount: aMsgs.filter(m => bSet.has(m)).length };
+        }
+
+        function computeDiff(a, b) {
+            if (!a || !b) return null;
+            const msgDiff = diffMessages(a, b);
+            return {
+                a, b, msgDiff,
+                regressions: (b.errors || 0) > (a.errors || 0) ? (b.errors - a.errors) : 0,
+            };
+        }
+
+        function renderPicker() {
+            if (!_el) return;
+            const sel = _el.querySelector(`#${SCRIPT_ID}-diff-picker`);
+            if (!sel) return;
+            const opt = (s) => `<option value="${s.id}">${s.id === '__current__' ? '🔴 Current (live)' : `${new Date(s.timestamp).toLocaleString()} · ${s.turns}t/${s.toolCalls}tc`}</option>`;
+            sel.innerHTML = `
+                <select id="${SCRIPT_ID}-diff-a" style="flex:1;background:var(--aamp-bg);border:1px solid var(--aamp-border);color:var(--aamp-text);padding:6px 8px;border-radius:6px;font-size:12px;">${_sessions.map(opt).join('')}</select>
+                <span style="color:var(--aamp-text3);">vs</span>
+                <select id="${SCRIPT_ID}-diff-b" style="flex:1;background:var(--aamp-bg);border:1px solid var(--aamp-border);color:var(--aamp-text);padding:6px 8px;border-radius:6px;font-size:12px;">${_sessions.map(opt).join('')}</select>
+            `;
+            const selA = sel.querySelector(`#${SCRIPT_ID}-diff-a`);
+            const selB = sel.querySelector(`#${SCRIPT_ID}-diff-b`);
+            if (selA) { selA.value = _idA || ''; selA.addEventListener('change', () => { _idA = selA.value; renderDiff(); }); }
+            if (selB) { selB.value = _idB || ''; selB.addEventListener('change', () => { _idB = selB.value; renderDiff(); }); }
+        }
+
+        function renderDiff() {
+            if (!_el) return;
+            const body = _el.querySelector(`#${SCRIPT_ID}-diff-body`);
+            if (!body) return;
+            if (_sessions.length < 2) {
+                body.innerHTML = `<div style="padding:20px;text-align:center;color:var(--aamp-text3);">Need at least 2 sessions to compare. Run more agent sessions with local history enabled.</div>`;
+                return;
+            }
+            const a = _sessions.find(s => s.id === _idA);
+            const b = _sessions.find(s => s.id === _idB);
+            const diff = computeDiff(a, b);
+            if (!diff) { body.innerHTML = `<div style="padding:20px;text-align:center;color:var(--aamp-text3);">Select two sessions to compare.</div>`; return; }
+            const durFmt = (v) => (HUD.formatDuration ? HUD.formatDuration(Math.abs(v)) : `${v}s`);
+            body.innerHTML = `
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead><tr><th style="text-align:left;padding:6px 10px;color:var(--aamp-text3);font-weight:600;">Metric</th><th style="text-align:right;padding:6px 10px;color:var(--aamp-text3);font-weight:600;">A</th><th style="text-align:right;padding:6px 10px;color:var(--aamp-text3);font-weight:600;">B</th><th style="text-align:right;padding:6px 10px;color:var(--aamp-text3);font-weight:600;">Δ</th></tr></thead>
+                    <tbody>
+                        ${metricRow('Turns', a.turns, b.turns)}
+                        ${metricRow('Tool Calls', a.toolCalls, b.toolCalls)}
+                        ${metricRow('Errors', a.errors, b.errors)}
+                        ${metricRow('Duration', a.duration, b.duration, durFmt)}
+                        ${metricRow('Tokens (est.)', a.tokenEstimate, b.tokenEstimate)}
+                    </tbody>
+                </table>
+                <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--aamp-border);">
+                    <div style="font-size:12px;color:${diff.regressions > 0 ? 'var(--aamp-error)' : 'var(--aamp-success)'};font-weight:600;margin-bottom:8px;">
+                        ${diff.regressions > 0 ? `⚠️ Regression detected: +${diff.regressions} more error(s) in B` : '✅ No error regression detected'}
+                    </div>
+                    <div style="font-size:12px;color:var(--aamp-text3);">Messages unique to A: ${diff.msgDiff.onlyInA.length} · Messages unique to B: ${diff.msgDiff.onlyInB.length} · Shared: ${diff.msgDiff.sameCount}</div>
+                </div>
+            `;
+        }
+
         function build() {
             _el = document.createElement('div');
             _el.id = `${SCRIPT_ID}-diff`;
-            _el.innerHTML = `<div class="aamp-dbg-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);"></div><div class="aamp-dbg-panel" style="position:relative;margin:auto;width:90vw;max-width:900px;height:80vh;background:var(--aamp-surface);border:1px solid var(--aamp-border);border-radius:16px;box-shadow:var(--aamp-shadow);display:flex;flex-direction:column;overflow:hidden;"><div class="aamp-dbg-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--aamp-border);background:var(--aamp-surface2);flex-shrink:0;"><div class="aamp-dbg-title" style="display:flex;align-items:center;gap:12px;font-size:16px;font-weight:700;color:var(--aamp-text);">⇄ Session Diff</div><button style="background:none;border:none;color:var(--aamp-text);cursor:pointer;font-size:18px;" onclick="this.closest('#${SCRIPT_ID}-diff').classList.remove('open')">✕</button></div><div class="aamp-dbg-body" style="flex:1;display:flex;overflow:hidden;"><div style="flex:1;padding:20px;overflow-y:auto;color:var(--aamp-text2);">No previous session to compare. Run multiple sessions to see diffs.</div></div></div>`;
+            _el.innerHTML = `<div class="aamp-dbg-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);"></div><div class="aamp-dbg-panel" style="position:relative;margin:auto;width:90vw;max-width:900px;height:80vh;background:var(--aamp-surface);border:1px solid var(--aamp-border);border-radius:16px;box-shadow:var(--aamp-shadow);display:flex;flex-direction:column;overflow:hidden;"><div class="aamp-dbg-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--aamp-border);background:var(--aamp-surface2);flex-shrink:0;"><div class="aamp-dbg-title" style="display:flex;align-items:center;gap:12px;font-size:16px;font-weight:700;color:var(--aamp-text);">⇄ Session Diff</div><button style="background:none;border:none;color:var(--aamp-text);cursor:pointer;font-size:18px;" onclick="this.closest('#${SCRIPT_ID}-diff').classList.remove('open')">✕</button></div><div style="padding:12px 20px;border-bottom:1px solid var(--aamp-border);display:flex;align-items:center;gap:10px;" id="${SCRIPT_ID}-diff-picker"></div><div class="aamp-dbg-body" id="${SCRIPT_ID}-diff-body" style="flex:1;padding:20px;overflow-y:auto;color:var(--aamp-text2);"></div></div>`;
             document.body.appendChild(_el);
             _el.querySelector('.aamp-dbg-backdrop').addEventListener('click', close);
         }
-        return { init, open, close, toggle, openWithSession, build };
+        return { init, open, close, toggle, openWithSession, build, computeDiff };
     })();
 
     const PerformanceAnalytics = (() => {
@@ -3045,7 +3312,7 @@ const QuickActionsBar = (() => {
         _panel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span style="color:var(--aamp-accent);font-weight:700;">🎨 Theme Editor</span><button style="background:none;border:none;color:var(--aamp-text);cursor:pointer;" onclick="this.closest('#${SCRIPT_ID}-theme').style.display='none'">✕</button></div><div style="display:flex;flex-direction:column;gap:8px;"><label style="font-size:12px;color:var(--aamp-text2);">Accent Color<input type="color" id="${SCRIPT_ID}-theme-accent" value="${Config.get('accentColor')||'#00ff88'}" style="width:100%;height:30px;border:none;border-radius:4px;cursor:pointer;"></label><label style="font-size:12px;color:var(--aamp-text2);">Background<input type="color" id="${SCRIPT_ID}-theme-bg" value="${Config.get('bgColor')||'#0a0a0f'}" style="width:100%;height:30px;border:none;border-radius:4px;cursor:pointer;"></label><label style="font-size:12px;color:var(--aamp-text2);">Font Size<input type="range" id="${SCRIPT_ID}-theme-font" min="12" max="20" value="${Config.get('fontSize')||14}" style="width:100%;"><span id="${SCRIPT_ID}-theme-font-val">${Config.get('fontSize')||14}px</span></label><button id="${SCRIPT_ID}-theme-apply" style="background:var(--aamp-accent);border:none;color:white;padding:8px;border-radius:4px;cursor:pointer;font-weight:600;">Apply Theme</button></div>`;
         document.body.appendChild(_panel);
         _panel.querySelector(`#${SCRIPT_ID}-theme-font`)?.addEventListener('input', (e) => { const v = _panel?.querySelector(`#${SCRIPT_ID}-theme-font-val`); if (v) v.textContent = e.target.value + 'px'; });
-        _panel.querySelector(`#${SCRIPT_ID}-theme-apply`)?.addEventListener('click', () => { const accent = _panel?.querySelector(`#${SCRIPT_ID}-theme-accent`)?.value; const bg = _panel?.querySelector(`#${SCRIPT_ID}-theme-bg`)?.value; const fontSize = _panel?.querySelector(`#${SCRIPT_ID}-theme-font`)?.value; if (accent) Config.set('accentColor', accent); if (bg) Config.set('bgColor', bg); if (fontSize) Config.set('fontSize', parseInt(fontSize)); ThemeEngine.applyTheme(); toast('Theme applied', 'success'); });
+        _panel.querySelector(`#${SCRIPT_ID}-theme-apply`)?.addEventListener('click', () => { const accent = _panel?.querySelector(`#${SCRIPT_ID}-theme-accent`)?.value; const bg = _panel?.querySelector(`#${SCRIPT_ID}-theme-bg`)?.value; const fontSize = _panel?.querySelector(`#${SCRIPT_ID}-theme-font`)?.value; if (accent) Config.set('accentColor', accent); if (bg) Config.set('bgColor', bg); if (fontSize) Config.set('fontSize', parseInt(fontSize)); ThemeEngine.applyTheme(Config.get('theme')); toast('Theme applied', 'success'); });
     }
     return { init, open, close, toggle };
 })();
@@ -3057,7 +3324,7 @@ const NotificationCenter = (() => {
         log('🔔 Notifications');
         EventBus.on('toast:shown', (data) => { _notifications.unshift({ message: data.message, type: data.type, timestamp: Date.now() }); if (_notifications.length > 50) _notifications.pop(); });
     }
-    function push(message, type = 'info') { _notifications.unshift({ message, type, timestamp: Date.now() }); toast(message, type); }
+    function push(message, type = 'info') { toast(message, type); }
     function getNotifications() { return _notifications; }
     function clear() { _notifications = []; }
     function open() { if (!_panel) build(); _panel.classList.remove('aamp-hidden'); }
@@ -3159,7 +3426,7 @@ const AutoBackup = (() => {
     function init() {
         log('💾 Auto Backup');
         if (Config.get('autoBackup')) start();
-        EventBus.on('config:changed', (e) => { if (e.key === 'autoBackup') { e.value ? start() : stop(); } });
+        EventBus.on('config:change', (e) => { if (e.key === 'autoBackup') { e.value ? start() : stop(); } });
     }
     function start() { if (_interval) clearInterval(_interval); _interval = setInterval(() => runNow(), Config.get('backupInterval') || 300000); log('Auto Backup started'); }
     function stop() { if (_interval) { clearInterval(_interval); _interval = null; } log('Auto Backup stopped'); }
@@ -3315,6 +3582,17 @@ const InsightsDashboard = (() => {
     // ── Inject Phase 2-5 CSS ──
     function injectPhaseCSS() {
         GM_addStyle(`
+            /* Shared modal overlay — used by Session Dashboard, Session Diff,
+               Performance Analytics, History Browser, Session Playback.
+               (Fixes a bug where these panels had no CSS tying visibility to
+               the .open class, so once built they never actually hid again.) */
+            #${SCRIPT_ID}-dashboard, #${SCRIPT_ID}-diff, #${SCRIPT_ID}-analytics, #${SCRIPT_ID}-history, #${SCRIPT_ID}-playback {
+                position:fixed; inset:0; z-index:999995; display:none; align-items:center; justify-content:center; font-family:var(--aamp-font);
+            }
+            #${SCRIPT_ID}-dashboard.open, #${SCRIPT_ID}-diff.open, #${SCRIPT_ID}-analytics.open, #${SCRIPT_ID}-history.open, #${SCRIPT_ID}-playback.open {
+                display:flex;
+            }
+
             /* Phase 2: Quick Actions */
             #${SCRIPT_ID}-quick-actions { position:fixed; bottom:120px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--aamp-surface); border:1px solid var(--aamp-border); border-radius:100px; padding:8px 14px; display:flex; align-items:center; gap:6px; box-shadow:var(--aamp-shadow),var(--aamp-glow); z-index:999975; font-family:var(--aamp-font); opacity:0; pointer-events:none; transition:opacity 0.2s ease,transform 0.2s ease; white-space:nowrap; max-width:calc(100vw-40px); overflow-x:auto; scrollbar-width:none; }
             #${SCRIPT_ID}-quick-actions.visible { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
@@ -3597,6 +3875,7 @@ const InsightsDashboard = (() => {
         const _queue = [];
         let _running = false;
 
+        function init() { log('⚡ Parallel Exec'); }
         function add(name, fn, deps = []) { _queue.push({ name, fn, deps, done: false }); }
 
         async function runAll() {
@@ -3615,12 +3894,13 @@ const InsightsDashboard = (() => {
             _running = false;
         }
 
-        return { add, runAll };
+        return { init, add, runAll };
     })();
 
     const TaskChain = (() => {
         const _chains = {};
 
+        function init() { log('🔗 Task Chain'); CommandPalette.addCommand({ icon:'🔗', label:'Run Task Chain', tags:'chain automation tasks', action:() => { const names = list(); if (names.length === 0) { toast('No task chains defined', 'info'); return; } run(names[0]); } }); }
         function define(name, steps) { _chains[name] = steps; }
 
         async function run(name) {
@@ -3633,13 +3913,14 @@ const InsightsDashboard = (() => {
 
         function list() { return Object.keys(_chains); }
 
-        return { define, run, list };
+        return { init, define, run, list };
     })();
 
     const ScheduledJobs = (() => {
         const _jobs = [];
         let _timer = null;
 
+        function init() { log('⏰ Scheduled Jobs'); start(); }
         function add(name, fn, intervalMs) { _jobs.push({ name, fn, intervalMs, lastRun: 0 }); }
 
         function start() {
@@ -3658,13 +3939,14 @@ const InsightsDashboard = (() => {
         function stop() { clearInterval(_timer); _timer = null; }
         function list() { return _jobs.map(j => ({ name: j.name, intervalMs: j.intervalMs })); }
 
-        return { add, start, stop, list };
+        return { init, add, start, stop, list };
     })();
 
     const AutoTrigger = (() => {
         let _enabled = false;
         let _timer = null;
 
+        function init() { log('🎯 Auto Trigger'); }
         function start(prompt, intervalMs) {
             stop();
             _enabled = true;
@@ -3684,53 +3966,179 @@ const InsightsDashboard = (() => {
         function stop() { clearInterval(_timer); _timer = null; _enabled = false; }
         function isRunning() { return _enabled; }
 
-        return { start, stop, isRunning };
+        return { init, start, stop, isRunning };
     })();
+
 
     // ============================================================
     //  IMPLEMENTED STUBS — Sections 020, 030, 032, 053, 063, 074, 091
     // ============================================================
 
     const SessionPlayback = (() => {
-        let _playing = false, _interval = null, _speed = 1;
-        function init() { log('▶️ Session Playback'); }
-        function play(sessionId) { _playing = true; _speed = 1; log(`▶️ Playing session ${sessionId}`); }
-        function pause() { _playing = false; clearInterval(_interval); _interval = null; }
-        function resume() { _playing = true; }
-        function stop() { pause(); _speed = 1; }
+        let _playing = false, _paused = false, _timer = null, _speed = 1;
+        let _session = null, _stepIndex = 0, _el = null;
+
+        function init() {
+            log('▶️ Session Playback');
+            CommandPalette.addCommand({
+                icon: '▶️', label: 'Replay Past Session', tags: 'playback replay session history',
+                action: async () => {
+                    const sessions = (typeof StorageEngine !== 'undefined') ? await StorageEngine.getAllSessions() : [];
+                    if (!sessions.length) { toast('No saved sessions to replay', 'info'); return; }
+                    play(sessions[0].id, sessions);
+                },
+            });
+        }
+
+        function build() {
+            _el = document.createElement('div');
+            _el.id = `${SCRIPT_ID}-playback`;
+            _el.innerHTML = `<div class="aamp-dbg-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);"></div><div class="aamp-dbg-panel" style="position:relative;margin:auto;width:90vw;max-width:700px;height:75vh;background:var(--aamp-surface);border:1px solid var(--aamp-border);border-radius:16px;box-shadow:var(--aamp-shadow);display:flex;flex-direction:column;overflow:hidden;"><div class="aamp-dbg-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--aamp-border);background:var(--aamp-surface2);flex-shrink:0;"><div style="display:flex;align-items:center;gap:12px;font-size:16px;font-weight:700;color:var(--aamp-text);">▶️ Session Playback</div><button id="${SCRIPT_ID}-playback-close" style="background:none;border:none;color:var(--aamp-text);cursor:pointer;font-size:18px;">✕</button></div><div style="display:flex;align-items:center;gap:8px;padding:10px 20px;border-bottom:1px solid var(--aamp-border);"><button id="${SCRIPT_ID}-playback-toggle" style="background:var(--aamp-accent);border:none;color:white;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">⏸ Pause</button><select id="${SCRIPT_ID}-playback-speed" style="background:var(--aamp-bg);border:1px solid var(--aamp-border);color:var(--aamp-text);padding:5px 8px;border-radius:6px;font-size:12px;"><option value="2000">0.5×</option><option value="1000" selected>1×</option><option value="400">2.5×</option><option value="100">10×</option></select><span id="${SCRIPT_ID}-playback-progress" style="margin-left:auto;font-size:12px;color:var(--aamp-text3);"></span></div><div id="${SCRIPT_ID}-playback-body" style="flex:1;overflow-y:auto;padding:16px 20px;"></div></div>`;
+            document.body.appendChild(_el);
+            _el.querySelector('.aamp-dbg-backdrop').addEventListener('click', stop);
+            _el.querySelector(`#${SCRIPT_ID}-playback-close`).addEventListener('click', stop);
+            _el.querySelector(`#${SCRIPT_ID}-playback-toggle`).addEventListener('click', () => (_paused ? resume() : pause()));
+            _el.querySelector(`#${SCRIPT_ID}-playback-speed`).addEventListener('change', (e) => setSpeed(Number(e.target.value)));
+        }
+
+        async function play(sessionId, preloadedSessions) {
+            stop();
+            const sessions = preloadedSessions || (typeof StorageEngine !== 'undefined' ? await StorageEngine.getAllSessions() : []);
+            _session = sessions.find(s => s.id === sessionId) || sessions[0];
+            if (!_session || !Array.isArray(_session.messages) || _session.messages.length === 0) {
+                toast('That session has no recorded messages to replay', 'warning');
+                return;
+            }
+            _stepIndex = 0; _speed = 1000; _playing = true; _paused = false;
+            if (!_el) build();
+            _el.classList.add('open');
+            _el.querySelector(`#${SCRIPT_ID}-playback-body`).innerHTML = '';
+            EventBus.emit('playback:start', { id: _session.id });
+            _tick();
+        }
+
+        function _tick() {
+            if (!_playing || _paused || !_session) return;
+            const msgs = _session.messages;
+            if (_stepIndex >= msgs.length) { EventBus.emit('playback:end', { id: _session.id }); _updateProgress(); return; }
+            _renderStep(msgs[_stepIndex]);
+            _stepIndex++;
+            _updateProgress();
+            _timer = setTimeout(_tick, _speed);
+        }
+
+        function _renderStep(msg) {
+            if (!_el) return;
+            const body = _el.querySelector(`#${SCRIPT_ID}-playback-body`);
+            if (!body) return;
+            const role = (msg && msg.role) || 'assistant';
+            const text = (msg && (msg.text || msg.textContent)) || '';
+            const row = document.createElement('div');
+            row.style.cssText = `margin-bottom:12px;padding:10px 14px;border-radius:10px;max-width:85%;font-size:13px;line-height:1.5;color:var(--aamp-text);background:${role === 'user' ? 'var(--aamp-accent)' : 'var(--aamp-surface2)'};${role === 'user' ? 'margin-left:auto;color:white;' : ''}`;
+            row.innerHTML = `<div style="font-size:10px;opacity:0.7;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">${escapeHTML(role)}</div>${escapeHTML(text).slice(0, 2000)}`;
+            body.appendChild(row);
+            body.scrollTop = body.scrollHeight;
+        }
+
+        function _updateProgress() {
+            if (!_el || !_session) return;
+            const el = _el.querySelector(`#${SCRIPT_ID}-playback-progress`);
+            if (el) el.textContent = `${_stepIndex}/${_session.messages.length}`;
+        }
+
+        function pause() {
+            _paused = true;
+            clearTimeout(_timer); _timer = null;
+            const btn = _el?.querySelector(`#${SCRIPT_ID}-playback-toggle`);
+            if (btn) btn.textContent = '▶ Resume';
+            EventBus.emit('playback:pause', { id: _session?.id });
+        }
+
+        function resume() {
+            if (!_playing || !_paused) return;
+            _paused = false;
+            const btn = _el?.querySelector(`#${SCRIPT_ID}-playback-toggle`);
+            if (btn) btn.textContent = '⏸ Pause';
+            EventBus.emit('playback:resume', { id: _session?.id });
+            _tick();
+        }
+
+        function stop() {
+            _playing = false; _paused = false;
+            clearTimeout(_timer); _timer = null;
+            if (_el) _el.classList.remove('open');
+        }
+
         function setSpeed(ms) { _speed = ms; }
-        function isPlaying() { return _playing; }
-        return { init, play, pause, resume, stop, setSpeed, isPlaying };
+        function isPlaying() { return _playing && !_paused; }
+
+        return { init, play, pause, resume, stop, setSpeed, isPlaying, build };
     })();
 
     const SessionFreeze = (() => {
-        let _frozen = false, _snapshot = null;
-        function init() { log('❄️ Session Freeze'); }
-        function freeze() {
-            _frozen = true;
-            _snapshot = { turnCount: S.turnCount, toolCallCount: S.toolCallCount, tokenEstimate: S.tokenEstimate, errorCount: S.errorCount, messages: [...S.messages], agentSteps: [...(S.agentSteps || [])] };
-            EventBus.emit('state:frozen');
-            toast('Session frozen ❄️', 'info');
+        let _frozen = false, _snapshot = null, _frozenAt = null;
+
+        function init() {
+            log('❄️ Session Freeze');
+            CommandPalette.addCommand({
+                icon: '❄️', label: 'Freeze Session', tags: 'freeze pause session',
+                action: () => { isFrozen() ? resume() : freeze(); },
+            });
         }
+
+        // Freezing pauses *tracking*: DOMObserver stops incrementing counters
+        // (turns/tool calls/tokens/errors) and the session timer stops advancing,
+        // so you can inspect a session mid-run without its stats moving under you.
+        // The underlying page keeps running — this only pauses AAMP's bookkeeping.
+        function freeze() {
+            if (_frozen) return;
+            _frozen = true;
+            _frozenAt = Date.now();
+            _snapshot = { turnCount: S.turnCount, toolCallCount: S.toolCallCount, tokenEstimate: S.tokenEstimate, errorCount: S.errorCount, messages: [...S.messages], agentSteps: [...(S.agentSteps || [])] };
+            document.body.dataset.aampFrozen = 'true';
+            EventBus.emit('state:frozen');
+            toast('Session frozen ❄️ — tracking paused', 'info');
+        }
+
         function resume() {
+            if (!_frozen) return;
             _frozen = false;
-            if (_snapshot) { S.turnCount = _snapshot.turnCount; S.toolCallCount = _snapshot.toolCallCount; S.tokenEstimate = _snapshot.tokenEstimate; S.errorCount = _snapshot.errorCount; }
+            // Shift sessionStart forward by however long we were frozen so the
+            // timer doesn't count the frozen interval as elapsed session time.
+            if (_frozenAt && S.sessionStart) S.sessionStart += (Date.now() - _frozenAt);
+            _frozenAt = null;
+            document.body.dataset.aampFrozen = 'false';
             EventBus.emit('state:resumed');
             toast('Session resumed ❄️', 'info');
         }
+
         function isFrozen() { return _frozen; }
         function getSnapshot() { return _snapshot; }
         return { init, freeze, resume, isFrozen, getSnapshot };
     })();
 
     const StateInjection = (() => {
-        function init() { log('💉 State Injection'); }
+        function init() {
+            log('💉 State Injection');
+            CommandPalette.addCommand({
+                icon: '💉', label: 'Inject State Value (Debug)', tags: 'inject state debug testing',
+                action: () => {
+                    const key = prompt('State key to inject (e.g. tokenEstimate):');
+                    if (!key) return;
+                    const raw = prompt(`New value for "${key}" (JSON or plain text):`);
+                    if (raw === null) return;
+                    let value;
+                    try { value = JSON.parse(raw); } catch { value = raw; }
+                    inject(key, value);
+                },
+            });
+        }
         function inject(key, value) {
             if (key in S) { S[key] = value; EventBus.emit(`state:injected`, { key, value }); toast(`Injected ${key}`, 'info'); }
             else { warn(`StateInjection: "${key}" not found in state`); }
         }
         function injectBatch(obj) { for (const [k, v] of Object.entries(obj)) inject(k, v); }
-        function reset(key) { inject(key, S._initial?.[key]); }
+        function reset(key) { inject(key, State.getInitial(key)); }
         function listInjected() { return Object.keys(S).filter(k => typeof S[k] !== 'function'); }
         return { init, inject, injectBatch, reset, listInjected };
     })();
@@ -3904,8 +4312,8 @@ const InsightsDashboard = (() => {
     const SecurityHardening = (() => {
         function init() {
             log('🛡️ Security Hardening');
-            sanitizeAttributes(document.body);
-            EventBus.on('dom:mutation', () => sanitizeAttributes(document.body));
+            XSSPrevention.sanitizeAttributes(document.body);
+            EventBus.on('dom:mutation', () => XSSPrevention.sanitizeAttributes(document.body));
         }
         function getPolicy() {
             return { csp: 'strict', sanitizeDOM: true, validateURLs: true, blockInlineScripts: true };
@@ -4036,7 +4444,7 @@ const InsightsDashboard = (() => {
 
     const Release = (() => {
         function init() { log('📦 Release v7.0'); }
-        function changelog() { return [`v7.0.0 — ModuleRegistry architecture`, `v7.0.0 — Config Engine v2 (CONFIG_SCHEMA)`, `v7.0.0 — State Store v2 (computed, history, batch)`, `v7.0.0 — EventBus v2 (wildcards, priorities, async)`, `v7.0.0 — Storage Engine v3 (migration, compression)`, `v7.0.0 — Settings Panel v2 (schema-driven)`, `v7.0.0 — Grey Area Suites (9 modules)`, `v7.0.0 — 7 new stub implementations`, `v7.0.0 — 9 missing modules implemented (MultiAgentOrchestration, PluginRegistry, CustomScriptRunner, BashLogViewer, DevURLDetector, SandboxTracker, MemoryLeakFixer, DOMOptimization, EventListenerManagement)`]; }
+        function changelog() { return [`v7.1.1 — Fixed 'Pause' button in Settings (set a Config key nothing ever read; now actually gates DOMObserver tracking)`, `v7.1.1 — Fixed AutoBackup listening for a nonexistent 'config:changed' event (typo for 'config:change') — auto-backup toggle never worked`, `v7.1.1 — Added missing CONFIG_SCHEMA entries for autoBackup/backupInterval/enabled/a11yEnabled/accentColor/bgColor (were always undefined)`, `v7.1.1 — toast() now emits 'toast:shown' so NotificationCenter's history actually populates (previously always empty)`, `v7.1.1 — Theme Editor's custom accent/background color pickers now actually apply (were saved to Config but never read anywhere)`, `v7.1.0 — CRITICAL FIX: infinite DOM-mutation loop in tool-call wrapping (froze the tab on real agent sessions)`, `v7.1.0 — Fixed duplicate module init (StorageEngine/SettingsPanel/UIEnhancer/KeyboardModule ran twice per load)`, `v7.1.0 — Registered 22 previously-defined-but-never-initialized modules (CommandPalette, XSSPrevention, SessionPlayback, SessionFreeze, StateInjection, etc.)`, `v7.1.0 — Wired up dead 'agent:toolTracked' event (ToolTiming/AgentToolTracker/TerminalInspector/LeaderboardIntel were always empty)`, `v7.1.0 — ModelFingerprint now does real heuristic scoring instead of always returning 'unknown'`, `v7.1.0 — SessionDiff now actually compares two real sessions instead of a hardcoded placeholder`, `v7.1.0 — SessionPlayback now replays real saved session messages with speed control`, `v7.1.0 — SessionFreeze now actually pauses tracking instead of just snapshotting/restoring counters`, `v7.1.0 — Fixed StateInjection.reset() referencing nonexistent S._initial`, `v7.1.0 — Fixed 5 modal panels (Dashboard/Diff/Analytics/History/Playback) missing CSS to hide once opened`, `v7.0.0 — ModuleRegistry architecture`, `v7.0.0 — Config Engine v2 (CONFIG_SCHEMA)`, `v7.0.0 — State Store v2 (computed, history, batch)`, `v7.0.0 — EventBus v2 (wildcards, priorities, async)`, `v7.0.0 — Storage Engine v3 (migration, compression)`, `v7.0.0 — Settings Panel v2 (schema-driven)`, `v7.0.0 — Grey Area Suites (9 modules)`]; }
         function bump() { return SCRIPT_VERSION; }
         function getPackage() { return { version: SCRIPT_VERSION, modules: ModuleRegistry.getAll().length, lines: document.querySelector('script')?.src?.length || 0, changelog: changelog() }; }
         function tag() { return `v${SCRIPT_VERSION}`; }
@@ -4052,12 +4460,6 @@ const InsightsDashboard = (() => {
             Config.load();
             injectBaseStyles();
             injectPhaseCSS();
-            SettingsPanel.build();
-
-            StorageEngine.init();
-            UIEnhancer.init();
-            if (Config.get('shortcutsEnabled')) KeyboardModule.init();
-            if (Config.get('settingsPanelOpen')) SettingsPanel.open();
             document.body.dataset.aampFullwidth = Config.get('fullWidth');
             document.body.dataset.aampFocus = Config.get('focusMode');
 
@@ -4069,7 +4471,8 @@ const InsightsDashboard = (() => {
             ModuleRegistry.register('storageEngine', { phase:1, init(){StorageEngine.init();}, deps:['config'] });
             ModuleRegistry.register('uiEnhancer', { phase:1, init(){UIEnhancer.init();}, deps:['eventBus'] });
 
-            ModuleRegistry.register('keyboardModule', { phase:2, init(){KeyboardModule.init();}, deps:['config'] });
+            ModuleRegistry.register('keyboardModule', { phase:2, init(){ if (Config.get('shortcutsEnabled')) KeyboardModule.init(); }, deps:['config'] });
+
             ModuleRegistry.register('commandPalette', { phase:2, init(){CommandPalette.init();}, deps:['config'] });
             ModuleRegistry.register('promptTemplates', { phase:2, init(){PromptTemplates.init();}, deps:['config'] });
 
@@ -4089,6 +4492,9 @@ const InsightsDashboard = (() => {
             ModuleRegistry.register('promptEnhancer', { phase:4, init(){PromptEnhancer.init();}, deps:['config','eventBus'] });
             ModuleRegistry.register('sessionDashboard', { phase:4, init(){SessionDashboard.init();}, deps:['state'] });
             ModuleRegistry.register('sessionDiff', { phase:4, init(){SessionDiff.init();}, deps:['state'] });
+            ModuleRegistry.register('sessionPlayback', { phase:4, init(){SessionPlayback.init();}, deps:['storageEngine','commandPalette'] });
+            ModuleRegistry.register('sessionFreeze', { phase:4, init(){SessionFreeze.init();}, deps:['state','commandPalette'] });
+            ModuleRegistry.register('stateInjection', { phase:4, init(){StateInjection.init();}, deps:['state','commandPalette'] });
             ModuleRegistry.register('performanceAnalytics', { phase:4, init(){PerformanceAnalytics.init();}, deps:['state'] });
             ModuleRegistry.register('zipExport', { phase:4, init(){ZipExport.init();} });
             ModuleRegistry.register('historyBrowser', { phase:4, init(){HistoryBrowser.init();}, deps:['storageEngine'] });
@@ -4143,7 +4549,25 @@ const InsightsDashboard = (() => {
             ModuleRegistry.register('exportEngine', { phase:1, init(){log('📤 Export');}, deps:['config'] });
             ModuleRegistry.register('exportCustomization', { phase:5, init(){log('🎨 Export Customization');} });
 
+            // Previously-defined-but-never-registered modules (their init() never ran,
+            // so their CommandPalette entries/event listeners never got wired up).
+            ModuleRegistry.register('xssPrevention', { phase:1, init(){XSSPrevention.init();} });
+            ModuleRegistry.register('fileSearch', { phase:4, init(){FileSearch.init();}, deps:['commandPalette'] });
+            ModuleRegistry.register('responseEnhancer', { phase:4, init(){ResponseEnhancer.init();} });
+            ModuleRegistry.register('debuggerConsole', { phase:5, init(){DebuggerConsole.init();}, deps:['commandPalette'] });
+            ModuleRegistry.register('multiAgentOrchestration', { phase:5, init(){MultiAgentOrchestration.init();} });
+            ModuleRegistry.register('pluginRegistry', { phase:5, init(){PluginRegistry.init();} });
+            ModuleRegistry.register('customScriptRunner', { phase:5, init(){CustomScriptRunner.init();} });
+            ModuleRegistry.register('bashLogViewer', { phase:5, init(){BashLogViewer.init();} });
+            ModuleRegistry.register('devURLDetector', { phase:5, init(){DevURLDetector.init();} });
+            ModuleRegistry.register('sandboxTracker', { phase:5, init(){SandboxTracker.init();} });
+            ModuleRegistry.register('memoryLeakFixer', { phase:5, init(){MemoryLeakFixer.init();} });
+            ModuleRegistry.register('domOptimization', { phase:5, init(){DOMOptimization.init();} });
+            ModuleRegistry.register('eventListenerManagement', { phase:5, init(){EventListenerManagement.init();} });
+
             ModuleRegistry.boot();
+
+            if (Config.get('settingsPanelOpen')) SettingsPanel.open();
 
             EventBus.on('agent:activated', () => {
                 showAgentBadge();
@@ -4187,7 +4611,7 @@ const InsightsDashboard = (() => {
             EventBus.on('config:change', ({ key, value }) => ModuleRegistry.configChange(key, value));
 
 console.log(
-                 '%c⚡ Arena Agent Mode Pro v7.0 — Engine Refactored\n' +
+                 `%c⚡ Arena Agent Mode Pro v${SCRIPT_VERSION} — Bugfix Pass\n` +
                  '──────────────────────────────────────────────\n' +
                  'Ctrl+K → Command Palette   Ctrl+W → Workspace\n' +
                  'Ctrl+E → Export             Ctrl+A → Artifacts\n' +
