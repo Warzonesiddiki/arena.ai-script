@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Arena Agent Mode Pro
 // @namespace    https://arena.ai/
-// @version      7.1.0
+// @version      7.1.1
 // @description  v7.1 · Critical bugfix pass (infinite tool-call loop, duplicate init, dead modules) · ModuleRegistry Architecture · Phase-Based Boot · Error Isolation · Agent Mode Pro
 // @author       Arena Agent Mode Pro
 // @match        https://arena.ai/*
@@ -18,7 +18,7 @@
     'use strict';
 
     const SCRIPT_ID      = 'aamp';
-    const SCRIPT_VERSION = '7.1.0';
+    const SCRIPT_VERSION = '7.1.1';
     const SCRIPT_NAME    = 'Arena Agent Mode Pro (v7.1 Bugfix Pass)';
 
     // ============================================================
@@ -441,6 +441,12 @@
         sessionBookmarks: { type:'boolean', default:true, group:'persistence' },
         settingsPanelOpen: { type:'boolean', default:false, group:'internal' },
         settingsPanelPos: { type:'object', default:{x:null,y:null}, group:'internal' },
+        autoBackup: { type:'boolean', default:false, group:'persistence', description:'Periodically back up session data to script storage' },
+        backupInterval: { type:'number', default:300000, min:60000, max:3600000, step:60000, group:'persistence', description:'Auto-backup interval in ms' },
+        enabled: { type:'boolean', default:true, group:'internal', description:'Master pause switch — when false, AAMP stops tracking/reacting to page activity' },
+        a11yEnabled: { type:'boolean', default:false, group:'internal', description:'Run the AccessibilityEngine audit on every DOM mutation (can be noisy on busy pages)' },
+        accentColor: { type:'string', default:'', group:'appearance', description:'Custom accent color override (Theme Editor)' },
+        bgColor: { type:'string', default:'', group:'appearance', description:'Custom background color override (Theme Editor)' },
     };
 
     const DEFAULT_CONFIG = {};
@@ -850,6 +856,7 @@ function detectAgentMode() {
         }
 
         function analyzeAddedNode(node) {
+            if (!Config.get('enabled')) return;
             if (typeof SessionFreeze !== 'undefined' && SessionFreeze.isFrozen && SessionFreeze.isFrozen()) return;
             // Ignore AAMP's own injected UI (settings panel, toasts, collapsible
             // tool-call wrappers, etc.) so that our own DOM writes don't get
@@ -932,6 +939,13 @@ function detectAgentMode() {
             const theme = THEMES[themeKey] || THEMES.default;
             let css = ':root {\n';
             for (const [k, v] of Object.entries(theme.vars)) { css += `  ${k}: ${v};\n`; }
+            // Layer the Theme Editor's custom accent/background overrides (if set)
+            // on top of the base theme. These were previously saved to Config but
+            // never actually applied anywhere — the color pickers had no effect.
+            const accentOverride = Config.get('accentColor');
+            const bgOverride = Config.get('bgColor');
+            if (accentOverride) css += `  --aamp-accent: ${accentOverride};\n`;
+            if (bgOverride) css += `  --aamp-surface: ${bgOverride};\n`;
             css += '}\n';
             if (!_styleEl) { _styleEl = document.createElement('style'); _styleEl.id = STYLE_ID; document.head.appendChild(_styleEl); }
             _styleEl.textContent = css;
@@ -952,6 +966,7 @@ function detectAgentMode() {
                 if (key === 'theme') applyTheme(value);
                 if (key === 'customCSS') applyCustomCSS(value);
                 if (key === 'fontSize') document.documentElement.style.setProperty('--aamp-font-size', `${value}px`);
+                if (key === 'accentColor' || key === 'bgColor') applyTheme(Config.get('theme'));
             });
         }
 
@@ -1198,7 +1213,7 @@ function detectAgentMode() {
                 </div>
                 <div class="aamp-panel-footer">
                     <div class="aamp-panel-footer-left"><span class="aamp-version-badge"><span class="aamp-status-dot"></span> Active on arena.ai</span></div>
-                    <div style="display:flex;gap:6px;"><button class="aamp-btn aamp-btn-secondary" id="${SCRIPT_ID}-toggle-enabled">⏸ Pause</button><button class="aamp-btn aamp-btn-primary" id="${SCRIPT_ID}-close-footer">Done ✓</button></div>
+                    <div style="display:flex;gap:6px;"><button class="aamp-btn aamp-btn-secondary" id="${SCRIPT_ID}-toggle-enabled">${Config.get('enabled') === false ? '▶ Resume' : '⏸ Pause'}</button><button class="aamp-btn aamp-btn-primary" id="${SCRIPT_ID}-close-footer">Done ✓</button></div>
                 </div>
             `;
             document.body.appendChild(_panel);
@@ -1434,6 +1449,11 @@ function update() {
         el.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
         _toastContainer.appendChild(el);
         setTimeout(() => { el.classList.add('aamp-toast-out'); setTimeout(() => el.remove(), 250); }, duration);
+        // Notify anything tracking toast history (e.g. NotificationCenter) — this
+        // was previously never emitted, so NotificationCenter's history stayed
+        // empty for every toast() call across the whole script (hundreds of
+        // call sites), only ever gaining entries via its own push() wrapper.
+        if (typeof EventBus !== 'undefined') EventBus.emit('toast:shown', { message, type, duration });
     }
 
     // ============================================================
@@ -3292,7 +3312,7 @@ const QuickActionsBar = (() => {
         _panel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span style="color:var(--aamp-accent);font-weight:700;">🎨 Theme Editor</span><button style="background:none;border:none;color:var(--aamp-text);cursor:pointer;" onclick="this.closest('#${SCRIPT_ID}-theme').style.display='none'">✕</button></div><div style="display:flex;flex-direction:column;gap:8px;"><label style="font-size:12px;color:var(--aamp-text2);">Accent Color<input type="color" id="${SCRIPT_ID}-theme-accent" value="${Config.get('accentColor')||'#00ff88'}" style="width:100%;height:30px;border:none;border-radius:4px;cursor:pointer;"></label><label style="font-size:12px;color:var(--aamp-text2);">Background<input type="color" id="${SCRIPT_ID}-theme-bg" value="${Config.get('bgColor')||'#0a0a0f'}" style="width:100%;height:30px;border:none;border-radius:4px;cursor:pointer;"></label><label style="font-size:12px;color:var(--aamp-text2);">Font Size<input type="range" id="${SCRIPT_ID}-theme-font" min="12" max="20" value="${Config.get('fontSize')||14}" style="width:100%;"><span id="${SCRIPT_ID}-theme-font-val">${Config.get('fontSize')||14}px</span></label><button id="${SCRIPT_ID}-theme-apply" style="background:var(--aamp-accent);border:none;color:white;padding:8px;border-radius:4px;cursor:pointer;font-weight:600;">Apply Theme</button></div>`;
         document.body.appendChild(_panel);
         _panel.querySelector(`#${SCRIPT_ID}-theme-font`)?.addEventListener('input', (e) => { const v = _panel?.querySelector(`#${SCRIPT_ID}-theme-font-val`); if (v) v.textContent = e.target.value + 'px'; });
-        _panel.querySelector(`#${SCRIPT_ID}-theme-apply`)?.addEventListener('click', () => { const accent = _panel?.querySelector(`#${SCRIPT_ID}-theme-accent`)?.value; const bg = _panel?.querySelector(`#${SCRIPT_ID}-theme-bg`)?.value; const fontSize = _panel?.querySelector(`#${SCRIPT_ID}-theme-font`)?.value; if (accent) Config.set('accentColor', accent); if (bg) Config.set('bgColor', bg); if (fontSize) Config.set('fontSize', parseInt(fontSize)); ThemeEngine.applyTheme(); toast('Theme applied', 'success'); });
+        _panel.querySelector(`#${SCRIPT_ID}-theme-apply`)?.addEventListener('click', () => { const accent = _panel?.querySelector(`#${SCRIPT_ID}-theme-accent`)?.value; const bg = _panel?.querySelector(`#${SCRIPT_ID}-theme-bg`)?.value; const fontSize = _panel?.querySelector(`#${SCRIPT_ID}-theme-font`)?.value; if (accent) Config.set('accentColor', accent); if (bg) Config.set('bgColor', bg); if (fontSize) Config.set('fontSize', parseInt(fontSize)); ThemeEngine.applyTheme(Config.get('theme')); toast('Theme applied', 'success'); });
     }
     return { init, open, close, toggle };
 })();
@@ -3304,7 +3324,7 @@ const NotificationCenter = (() => {
         log('🔔 Notifications');
         EventBus.on('toast:shown', (data) => { _notifications.unshift({ message: data.message, type: data.type, timestamp: Date.now() }); if (_notifications.length > 50) _notifications.pop(); });
     }
-    function push(message, type = 'info') { _notifications.unshift({ message, type, timestamp: Date.now() }); toast(message, type); }
+    function push(message, type = 'info') { toast(message, type); }
     function getNotifications() { return _notifications; }
     function clear() { _notifications = []; }
     function open() { if (!_panel) build(); _panel.classList.remove('aamp-hidden'); }
@@ -3406,7 +3426,7 @@ const AutoBackup = (() => {
     function init() {
         log('💾 Auto Backup');
         if (Config.get('autoBackup')) start();
-        EventBus.on('config:changed', (e) => { if (e.key === 'autoBackup') { e.value ? start() : stop(); } });
+        EventBus.on('config:change', (e) => { if (e.key === 'autoBackup') { e.value ? start() : stop(); } });
     }
     function start() { if (_interval) clearInterval(_interval); _interval = setInterval(() => runNow(), Config.get('backupInterval') || 300000); log('Auto Backup started'); }
     function stop() { if (_interval) { clearInterval(_interval); _interval = null; } log('Auto Backup stopped'); }
@@ -4424,7 +4444,7 @@ const InsightsDashboard = (() => {
 
     const Release = (() => {
         function init() { log('📦 Release v7.0'); }
-        function changelog() { return [`v7.1.0 — CRITICAL FIX: infinite DOM-mutation loop in tool-call wrapping (froze the tab on real agent sessions)`, `v7.1.0 — Fixed duplicate module init (StorageEngine/SettingsPanel/UIEnhancer/KeyboardModule ran twice per load)`, `v7.1.0 — Registered 22 previously-defined-but-never-initialized modules (CommandPalette, XSSPrevention, SessionPlayback, SessionFreeze, StateInjection, etc.)`, `v7.1.0 — Wired up dead 'agent:toolTracked' event (ToolTiming/AgentToolTracker/TerminalInspector/LeaderboardIntel were always empty)`, `v7.1.0 — ModelFingerprint now does real heuristic scoring instead of always returning 'unknown'`, `v7.1.0 — SessionDiff now actually compares two real sessions instead of a hardcoded placeholder`, `v7.1.0 — SessionPlayback now replays real saved session messages with speed control`, `v7.1.0 — SessionFreeze now actually pauses tracking instead of just snapshotting/restoring counters`, `v7.1.0 — Fixed StateInjection.reset() referencing nonexistent S._initial`, `v7.1.0 — Fixed 5 modal panels (Dashboard/Diff/Analytics/History/Playback) missing CSS to hide once opened`, `v7.0.0 — ModuleRegistry architecture`, `v7.0.0 — Config Engine v2 (CONFIG_SCHEMA)`, `v7.0.0 — State Store v2 (computed, history, batch)`, `v7.0.0 — EventBus v2 (wildcards, priorities, async)`, `v7.0.0 — Storage Engine v3 (migration, compression)`, `v7.0.0 — Settings Panel v2 (schema-driven)`, `v7.0.0 — Grey Area Suites (9 modules)`]; }
+        function changelog() { return [`v7.1.1 — Fixed 'Pause' button in Settings (set a Config key nothing ever read; now actually gates DOMObserver tracking)`, `v7.1.1 — Fixed AutoBackup listening for a nonexistent 'config:changed' event (typo for 'config:change') — auto-backup toggle never worked`, `v7.1.1 — Added missing CONFIG_SCHEMA entries for autoBackup/backupInterval/enabled/a11yEnabled/accentColor/bgColor (were always undefined)`, `v7.1.1 — toast() now emits 'toast:shown' so NotificationCenter's history actually populates (previously always empty)`, `v7.1.1 — Theme Editor's custom accent/background color pickers now actually apply (were saved to Config but never read anywhere)`, `v7.1.0 — CRITICAL FIX: infinite DOM-mutation loop in tool-call wrapping (froze the tab on real agent sessions)`, `v7.1.0 — Fixed duplicate module init (StorageEngine/SettingsPanel/UIEnhancer/KeyboardModule ran twice per load)`, `v7.1.0 — Registered 22 previously-defined-but-never-initialized modules (CommandPalette, XSSPrevention, SessionPlayback, SessionFreeze, StateInjection, etc.)`, `v7.1.0 — Wired up dead 'agent:toolTracked' event (ToolTiming/AgentToolTracker/TerminalInspector/LeaderboardIntel were always empty)`, `v7.1.0 — ModelFingerprint now does real heuristic scoring instead of always returning 'unknown'`, `v7.1.0 — SessionDiff now actually compares two real sessions instead of a hardcoded placeholder`, `v7.1.0 — SessionPlayback now replays real saved session messages with speed control`, `v7.1.0 — SessionFreeze now actually pauses tracking instead of just snapshotting/restoring counters`, `v7.1.0 — Fixed StateInjection.reset() referencing nonexistent S._initial`, `v7.1.0 — Fixed 5 modal panels (Dashboard/Diff/Analytics/History/Playback) missing CSS to hide once opened`, `v7.0.0 — ModuleRegistry architecture`, `v7.0.0 — Config Engine v2 (CONFIG_SCHEMA)`, `v7.0.0 — State Store v2 (computed, history, batch)`, `v7.0.0 — EventBus v2 (wildcards, priorities, async)`, `v7.0.0 — Storage Engine v3 (migration, compression)`, `v7.0.0 — Settings Panel v2 (schema-driven)`, `v7.0.0 — Grey Area Suites (9 modules)`]; }
         function bump() { return SCRIPT_VERSION; }
         function getPackage() { return { version: SCRIPT_VERSION, modules: ModuleRegistry.getAll().length, lines: document.querySelector('script')?.src?.length || 0, changelog: changelog() }; }
         function tag() { return `v${SCRIPT_VERSION}`; }
