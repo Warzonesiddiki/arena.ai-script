@@ -16,13 +16,14 @@ This folder contains the complete planning and technical documentation for the p
 | `PHASE-0C-IMPLEMENTATION.md` | Phase 0C signed Content Bridge protocol and safety-boundary record | ✅ Complete |
 | `PHASE-0D-IMPLEMENTATION.md` | Phase 0D hybrid storage, compression, integrity, and recovery record | ✅ Complete |
 | `PHASE-1A-1B-IMPLEMENTATION.md` | Phase 1A scoped DOM observer and 1B runtime-consolidation record | ✅ Complete |
+| `PHASE-1C-1E-IMPLEMENTATION.md` | Phase 1C recovery, 1D tracing, and 1E performance-guard record | ✅ Complete |
 
 ## Blueprint Summary
 
 - **Total Phases**: 20
 - **Total Subphases**: 100
-- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A — DOMObserver v2 ✅; Phase 1B — TickDispatcher Consolidation ✅
-- **Next Milestone**: Phase 1C — Error Recovery
+- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅
+- **Next Milestone**: Phase 2A — Side Panel
 - **Platform**: Chrome Browser Extension (Manifest V3)
 - **Key Focus Areas**:
   - Gradual Multi-Agent rollout (Phase 3 → Phase 6)

@@ -6,11 +6,26 @@ import {
 import { ContentBridge } from '../bridge/content-bridge';
 import { EventBus } from '../core/event-bus';
 import { DomObserverV2, findArenaRoot, type DomObserverEvents } from '../observability/dom-observer';
+import { PerformanceMonitor } from '../observability/performance-monitor';
+import { Tracer } from '../observability/tracer';
+import { ErrorRecoveryManager } from '../reliability/recovery-manager';
+import { setExtensionStatus } from '../bridge/safe-dom';
 
 /**
  * Phase 0C isolated-world entry point. It deliberately offers no window event,
  * CustomEvent, DOM attribute, or injected-script API to page JavaScript.
  */
+const contentTracer = new Tracer();
+const contentRecovery = new ErrorRecoveryManager({
+  tracer: contentTracer,
+  notifier: {
+    notify: ({ message, severity }) => {
+      if (document.body) setExtensionStatus(document, message, severity);
+    },
+  },
+});
+contentRecovery.installGlobalHandlers(window);
+
 void initialiseContentBridge();
 
 async function initialiseContentBridge(): Promise<void> {
@@ -46,7 +61,7 @@ async function initialiseContentBridge(): Promise<void> {
     startScopedObservation();
   } catch (error) {
     // A page must continue to work normally if the extension worker is unavailable.
-    console.warn('[AAMP] Content Bridge initialization failed.', error);
+    contentRecovery.captureGlobal('contentBridge.initialize', error);
   }
 }
 
@@ -57,9 +72,19 @@ function startScopedObservation(): void {
   const root = findArenaRoot(document);
   if (!root) return;
 
-  // Event consumers (tracing in Phase 1D) attach to this v7.2-compatible bus;
-  // the observer never falls back to document.body when Arena has no main root.
+  // The observer never falls back to document.body when Arena has no main root.
   const eventBus = new EventBus<DomObserverEvents>();
+  const performanceMonitor = new PerformanceMonitor();
+  eventBus.on('dom:mutation', ({ node, mutations, timestamp }) => {
+    const { count, overBudget } = performanceMonitor.recordMutation();
+    contentTracer.record('dom.mutation', overBudget ? 'warn' : 'debug', {
+      nodeType: node.nodeType,
+      mutationCount: mutations.length,
+      observerTimestamp: timestamp,
+      mutationsInWindow: count,
+      overBudget,
+    });
+  });
   domObserver = new DomObserverV2({ eventBus });
   domObserver.start(root);
 }

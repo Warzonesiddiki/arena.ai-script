@@ -72,6 +72,6 @@ describe('Manifest V3 service worker', () => {
 
     mock.startupListeners[0]?.();
 
-    expect(lifecycleLog).toHaveBeenCalledWith('[AAMP] browser startup', expect.objectContaining({ version: '8.0.0' }));
+    expect(lifecycleLog).toHaveBeenCalledWith(expect.stringMatching(/^\[AAMP\]\[[^\]]+\] browser startup$/u), expect.objectContaining({ version: '8.0.0' }));
   });
 });

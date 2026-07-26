@@ -14,6 +14,7 @@ module.exports = {
     'src/bridge/**/*.ts',
     'src/storage/**/*.ts',
     'src/observability/**/*.ts',
+    'src/reliability/**/*.ts',
     '!src/core/diagnostics.ts',
   ],
   coverageDirectory: '<rootDir>/coverage',
