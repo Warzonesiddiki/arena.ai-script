@@ -1,5 +1,6 @@
 import { BridgeSessionManager } from '../bridge/session-manager';
 import { RuntimeStatusStore } from './runtime-status';
+import { OrchestrationService } from './orchestration-service';
 import {
   isEventMessage,
   isHandshakeRequest,
@@ -20,6 +21,7 @@ import { ErrorRecoveryManager } from '../reliability/recovery-manager';
 const HEALTH_CHECK_MESSAGE = 'aamp:health-check';
 const RUNTIME_STATUS_MESSAGE = 'aamp:runtime-status';
 const runtimeStatus = new RuntimeStatusStore();
+const orchestration = new OrchestrationService();
 const workerTracer = new Tracer();
 const notificationCenter = new NotificationCenter({
   nativeApi: { create: (id, options) => chrome.notifications.create(id, options) },
@@ -79,6 +81,12 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return;
   }
 
+  if (isOrchestrationRequest(message)) {
+    try { sendResponse({ ok: true, orchestration: message.type === 'aamp:orchestration:create' ? orchestration.create(message.goal) : message.type === 'aamp:orchestration:approve' ? orchestration.approve(message.taskId) : orchestration.snapshot() }); }
+    catch (error) { sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Orchestration request failed.' }); }
+    return;
+  }
+
   if (isRuntimeStatusRequest(message)) {
     sendResponse({ ok: true, status: runtimeStatus.get(chrome.runtime.getManifest().version) });
     return;
@@ -94,6 +102,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     });
   return true;
 });
+
+function isOrchestrationRequest(message: unknown): message is { type: 'aamp:orchestration:create'; goal: string } | { type: 'aamp:orchestration:approve'; taskId: string } | { type: 'aamp:orchestration:status' } {
+  if (typeof message !== 'object' || message === null) return false; const value = message as { type?: unknown; goal?: unknown; taskId?: unknown };
+  return (value.type === 'aamp:orchestration:create' && typeof value.goal === 'string' && value.goal.length <= 4000) || (value.type === 'aamp:orchestration:approve' && typeof value.taskId === 'string') || value.type === 'aamp:orchestration:status';
+}
 
 function isRuntimeStatusRequest(message: unknown): message is { type: typeof RUNTIME_STATUS_MESSAGE } {
   return typeof message === 'object'

@@ -91,3 +91,24 @@ function formatTimestamp(timestamp: number | null): string {
   const date = new Date(timestamp);
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString();
 }
+
+const planButton = document.getElementById('create-orchestration') as HTMLButtonElement | null;
+const goalInput = document.getElementById('orchestration-goal') as HTMLInputElement | null;
+const dashboard = document.getElementById('agent-dashboard');
+const agentCost = document.getElementById('agent-cost');
+planButton?.addEventListener('click', () => { if (goalInput?.value.trim()) void orchestrationRequest({ type: 'aamp:orchestration:create', goal: goalInput.value.trim() }); });
+void orchestrationRequest({ type: 'aamp:orchestration:status' });
+async function orchestrationRequest(message: unknown): Promise<void> {
+  try {
+    const response = await chrome.runtime.sendMessage(message) as { ok?: boolean; orchestration?: { active: boolean; estimatedCostUsd: number; cards: Array<{ role: string; status: string; approvalRequired: boolean }> } };
+    if (!response.ok || !response.orchestration || !dashboard) return;
+    agentCost!.textContent = `$${response.orchestration.estimatedCostUsd.toFixed(2)}`;
+    dashboard.replaceChildren();
+    if (!response.orchestration.active) { dashboard.textContent = 'No active plan.'; return; }
+    response.orchestration.cards.forEach((card) => {
+      const row = document.createElement('div'); row.textContent = `${card.role}: ${card.status}${card.approvalRequired ? ' · approval required' : ' · approved'}`;
+      if (card.approvalRequired) { const button = document.createElement('button'); button.type = 'button'; button.className = 'aamp-button aamp-button-quiet'; button.textContent = 'Approve'; button.addEventListener('click', () => void orchestrationRequest({ type: 'aamp:orchestration:approve', taskId: `${card.role}-1` })); row.append(' ', button); }
+      dashboard.append(row);
+    });
+  } catch (error) { console.warn('[AAMP] Orchestration dashboard refresh failed.', error); }
+}
