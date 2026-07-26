@@ -1,0 +1,6 @@
+interface:
+  display_name: "Arena.ai Script"
+  short_description: "Repo-specific patterns and workflows for arena.ai-script"
+  default_prompt: "Use the arena.ai-script repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
