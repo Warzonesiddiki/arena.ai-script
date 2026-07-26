@@ -3,7 +3,7 @@
 **Platform**: Chrome Browser Extension (Manifest V3)  
 **Target Version**: v8.0 (Ultimate Vision)  
 **Total Subphases**: 100  
-**Last Updated**: 2026-07-27
+**Last Updated**: 2026-07-26
 
 ---
 
@@ -39,6 +39,12 @@
 | **0C** | Content Bridge | Secure communication | `content/arena-bridge.js` with schema validation + message signing | 0A | Safe DOM read/write with validation |
 | **0D** | Storage Layer v1 | Hybrid storage | `chrome.storage.local` + IndexedDB with LZ4 compression | 0A | Reliable persistence of 50MB+ data |
 | **0E** | Testing Foundation | Test infrastructure | Jest + Chrome extension testing utilities + GitHub Actions CI | 0A | `npm test` passes with >80% coverage |
+
+#### Phase 0 implementation status
+
+- **0A — Project Scaffolding: Complete (2026-07-26).** The repository now builds a least-privilege Manifest V3 extension with TypeScript + webpack 5, an ephemeral ES-module service worker, native Side Panel, popup, options page, and a deliberately inert content-script entry point. `npm run build` validates the generated manifest and all referenced artifacts before the output is loaded unpacked in Chrome.
+- **0B–0E: Planned.** No core userscript utility, Arena page bridge, persistent product state, or agent workflow has been enabled by the scaffold. This preserves the intended security and observability sequencing.
+- **Implementation record:** [`PHASE-0A-IMPLEMENTATION.md`](PHASE-0A-IMPLEMENTATION.md).
 
 ---
 

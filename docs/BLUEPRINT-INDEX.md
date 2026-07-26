@@ -1,6 +1,6 @@
 # Arena Agent Mode Pro — Documentation Index
 
-**Last Updated**: 2026-07-27
+**Last Updated**: 2026-07-26
 
 This folder contains the complete planning and technical documentation for the project.
 
@@ -11,11 +11,14 @@ This folder contains the complete planning and technical documentation for the p
 | `20-PHASE-BLUEPRINT.md` | Full 20-Phase Zero-Compromise Blueprint | ✅ Complete & Up-to-date |
 | `TECHNICAL-SPEC-PHASE-3-6.md` | Detailed technical specification for Multi-Agent Orchestration | ✅ Complete |
 | `BLUEPRINT-INDEX.md` | This index file | ✅ Current |
+| `PHASE-0A-IMPLEMENTATION.md` | Phase 0A Manifest V3 scaffolding decisions and acceptance checks | ✅ Complete |
 
 ## Blueprint Summary
 
 - **Total Phases**: 20
 - **Total Subphases**: 100
+- **Current Implementation Milestone**: Phase 0A — Project Scaffolding ✅
+- **Next Milestone**: Phase 0B — Core Utilities
 - **Platform**: Chrome Browser Extension (Manifest V3)
 - **Key Focus Areas**:
   - Gradual Multi-Agent rollout (Phase 3 → Phase 6)

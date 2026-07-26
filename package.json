@@ -1,27 +1,44 @@
 {
-  "name": "arena.ai-script",
-  "version": "7.0.0",
-  "description": "Arena Agent Mode Pro — Tampermonkey/Greasemonkey userscript that enhances the Arena.ai chat/agent UI (HUD, command palette, session recovery, export, automation).",
-  "main": "arena-agent-mode-pro.user.js",
+  "name": "arena-agent-mode-pro",
+  "version": "8.0.0",
+  "private": true,
+  "description": "Arena Agent Mode Pro — a Manifest V3 Chrome extension for transparent, safety-first Arena.ai Agent Mode assistance.",
   "scripts": {
-    "test": "node --check arena-agent-mode-pro.user.js && node tests/smoke.js && node tests/regression-toolcall-loop.js && node tests/regression-pause-toggle.js"
+    "clean": "node scripts/clean.cjs",
+    "copy:assets": "node scripts/copy-extension-assets.cjs",
+    "typecheck": "tsc --noEmit",
+    "bundle": "webpack --mode production",
+    "bundle:dev": "webpack --mode development",
+    "verify:extension": "node tests/extension-scaffold.test.js",
+    "build": "npm run clean && npm run typecheck && npm run bundle && npm run copy:assets && npm run verify:extension",
+    "build:dev": "npm run clean && npm run typecheck && npm run bundle:dev && npm run copy:assets && npm run verify:extension",
+    "watch": "npm run clean && npm run copy:assets && webpack --mode development --watch",
+    "test:extension": "npm run build",
+    "test:legacy": "node --check arena-agent-mode-pro.user.js && node tests/smoke.js && node tests/regression-toolcall-loop.js && node tests/regression-pause-toggle.js",
+    "test": "npm run test:extension && npm run test:legacy"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Warzonesiddiki/arena.ai-script.git"
   },
   "keywords": [
-    "userscript",
-    "tampermonkey",
-    "arena.ai"
+    "arena.ai",
+    "chrome-extension",
+    "manifest-v3",
+    "agent-mode"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Warzonesiddiki/arena.ai-script/issues"
   },
   "homepage": "https://github.com/Warzonesiddiki/arena.ai-script#readme",
   "devDependencies": {
-    "jsdom": "^29.0.0"
+    "@types/chrome": "^0.1.31",
+    "jsdom": "^29.0.0",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.8.3",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1"
   }
 }
