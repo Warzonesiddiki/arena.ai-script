@@ -1484,7 +1484,10 @@ function update() {
              `;
          }
 
-        function startTimer() { _timer = setInterval(update, 1000); }
+        function startTimer() {
+            // Use shared TickDispatcher
+            TickDispatcher.register('hudTimer', update, 1000);
+        }
 
         function setVisible(show) { if (_hud) _hud.classList.toggle('aamp-hidden', !show); }
         function setPosition(pos) { if (_hud) _hud.className = `hud-${pos}`; }
@@ -1501,7 +1504,10 @@ function update() {
         function formatTokens(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n); }
         function pad(n) { return String(n).padStart(2, '0'); }
 
-        function destroy() { clearInterval(_timer); _hud?.remove(); }
+        function destroy() {
+            TickDispatcher.unregister('hudTimer');
+            _hud?.remove();
+        }
 
         return { build, update, setVisible, setPosition, destroy, formatDuration };
     })();
@@ -2146,19 +2152,24 @@ function update() {
             log('📊 Monitor Module initialized');
         }
 
-        let _autoContinueObserver = null, _idleCheckInterval = null;
+        let _autoContinueObserver = null;
+        let _autoContinueTickId = null;
 
         function setupAutoContinue() {
             const delay = Config.get('autoContinueDelay') || 2000;
             if (_autoContinueObserver) { _autoContinueObserver.disconnect(); _autoContinueObserver = null; }
-            clearInterval(_idleCheckInterval);
+            if (_autoContinueTickId) { TickDispatcher.unregister(_autoContinueTickId); _autoContinueTickId = null; }
+
             const seenButtons = new Set();
             _autoContinueObserver = new MutationObserver(() => {
                 if (!Config.get('autoContinue')) return;
                 findAndClickContinue(delay, seenButtons);
             });
             _autoContinueObserver.observe(document.body, { childList: true, subtree: true });
-            _idleCheckInterval = setInterval(() => {
+
+            // Use shared TickDispatcher instead of raw setInterval
+            _autoContinueTickId = 'autoContinueIdleCheck';
+            TickDispatcher.register(_autoContinueTickId, () => {
                 if (!Config.get('autoContinue') || !S.isAgentMode) return;
                 if (S.isAgentRunning || S.isAgentThinking) { S.agentIdleSince = null; return; }
                 if (!S.agentIdleSince) { S.agentIdleSince = Date.now(); return; }
