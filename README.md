@@ -8,7 +8,7 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 
 ## Current implementation status
 
-**Phases 0 through 6 are complete**, along with Phase 8C, 8E, and Phase 14. Phase 7 integrations are deliberately **not** implemented — see [Security posture](#security-posture) below.
+**Phases 0 through 6 are complete**, along with Phase 8C, 8E, 10 (local half), 11, and 14. Phase 7 integrations are deliberately **not** implemented — see [Security posture](#security-posture) below.
 
 Work is sequenced by real dependency rather than by phase number, and anything that would need an unjustified permission is left explicitly blocked rather than stubbed.
 
@@ -25,7 +25,9 @@ Work is sequenced by real dependency rather than by phase number, and anything t
 | **8C, 8E** | Timeline scrubber (session replay) and Focus Mode 3.0 | ✅ Complete |
 | **8A, 8B, 8D** | Infinite canvas, voice control, gestures | ⛔ Blocked — need 7E file access or microphone permission |
 | **14** | Agent behavior testing framework, simulation mode, golden tests | ✅ Complete |
-| **9–13, 15–20** | Collaboration, enterprise, safety/ethics, marketplace, and beyond | ⬜ Not started |
+| **10 (partial)** | Tamper-evident audit log and policy engine (SSO/reporting blocked) | ✅ Complete |
+| **11** | Safety & ethics — constitutional rules, risk scoring, approval workflows | ✅ Complete |
+| **9, 12, 13, 15–20** | Collaboration, advanced tooling, marketplace, simulation, and beyond | ⬜ Not started |
 
 ### Invariants that hold across every completed phase
 
@@ -95,6 +97,8 @@ extension/public/       Static extension assets copied unchanged to dist/
   options/              Options-page HTML
 src/
   analytics/            Deterministic performance analytics
+  audit/                Tamper-evident append-only audit hash chain
+  safety/               Constitutional risk and policy engine
   background/           Service worker, orchestration service, durable control state
   bridge/               Signed Content Bridge protocol, session manager, safe DOM ops
   commands/             Command palette index and modal

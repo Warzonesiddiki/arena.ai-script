@@ -217,11 +217,13 @@ Dependencies are per-item, not per-phase. 8C depends on the completed 6E and 8E 
 
 ### PHASE 9–20 (Condensed Structure)
 
+**Implementation status:** Phase 11 and the local half of Phase 10 are complete (2026-07-27), as is Phase 14. Everything else in this range remains not started, and several items are permanently gated behind the Phase 7 security work. See [`PHASE-10-11-IMPLEMENTATION.md`](PHASE-10-11-IMPLEMENTATION.md) and [`PHASE-8-14-IMPLEMENTATION.md`](PHASE-8-14-IMPLEMENTATION.md).
+
 | Phase | Name | Primary Focus |
 |-------|------|---------------|
 | **9** | Collaboration | Multi-user sessions, shared agents, presence indicators |
-| **10** | Enterprise | SSO, audit logs, policy engine, compliance reporting |
-| **11** | Safety & Ethics | Constitutional AI, risk scoring, approval workflows |
+| **10** | Enterprise | ✅ **Audit log + policy engine complete**; SSO and outbound compliance reporting blocked (need an identity provider and egress) |
+| **11** | Safety & Ethics | ✅ **Complete** — deterministic constitutional rules, risk floors, most-restrictive-wins verdicts |
 | **12** | Advanced Tooling | Web automation, data analysis, document intelligence |
 | **13** | Marketplace | Templates, personas, versioning, community features |
 | **14** | Testing Framework | ✅ **Complete** — harness drives the real lifecycle code, simulation mode, golden digests |

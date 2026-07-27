@@ -11,6 +11,7 @@ module.exports = {
   collectCoverageFrom: [
     'src/core/**/*.ts',
     'src/analytics/**/*.ts',
+    'src/audit/**/*.ts',
     'src/background/**/*.ts',
     'src/debugging/**/*.ts',
     'src/bridge/**/*.ts',
@@ -26,6 +27,7 @@ module.exports = {
     'src/notifications/**/*.ts',
     'src/recovery/**/*.ts',
     'src/reflection/**/*.ts',
+    'src/safety/**/*.ts',
     'src/scheduling/**/*.ts',
     'src/hibernation/**/*.ts',
     'src/triggers/**/*.ts',

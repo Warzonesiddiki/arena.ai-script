@@ -35,12 +35,13 @@ This folder contains the complete planning and technical documentation for the p
 | `PHASE-6-IMPLEMENTATION.md` | Phase 6A–6E capability-tier gate, routing, expanded roles, comparison, cost controls, and trace replay record | ✅ Complete |
 | `PHASE-7-SECURITY-DESIGN.md` | Phase 7 egress-policy prerequisite and the outstanding security work blocking integrations | ⛔ Integrations deliberately not implemented |
 | `PHASE-8-14-IMPLEMENTATION.md` | Phase 8C timeline scrubber, 8E focus mode, and Phase 14 agent-behavior harness record | ✅ Complete (8A/8B/8D blocked) |
+| `PHASE-10-11-IMPLEMENTATION.md` | Phase 10 tamper-evident audit log and Phase 11 risk/policy engine record | ✅ Complete (SSO/reporting blocked) |
 
 ## Blueprint Summary
 
 - **Total Phases**: 20
 - **Total Subphases**: 100
-- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3E — Controlled Light Multi-Agent Dashboard ✅; Phase 4A–4E — Intelligence Layer ✅; Phase 5A–5E — Persistence, Scheduling, Triggers, Hibernation, and Recovery ✅; Phase 6A–6E — Full Multi-Agent Arena Mode (up to 5 agents) ✅; Phase 8C/8E — Timeline Scrubber and Focus Mode ✅; Phase 14 — Agent Behavior Testing Framework ✅
+- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3E — Controlled Light Multi-Agent Dashboard ✅; Phase 4A–4E — Intelligence Layer ✅; Phase 5A–5E — Persistence, Scheduling, Triggers, Hibernation, and Recovery ✅; Phase 6A–6E — Full Multi-Agent Arena Mode (up to 5 agents) ✅; Phase 8C/8E — Timeline Scrubber and Focus Mode ✅; Phase 14 — Agent Behavior Testing Framework ✅; Phase 10 audit log and Phase 11 safety policy engine ✅
 - **Next Milestone**: Phase 7 integrations remain **blocked by design**. The egress gate and threat model are delivered; key management, per-host permission requests, rate limiting, per-action approval, audit logging, and an adversarial test suite are still required. See `PHASE-7-SECURITY-DESIGN.md`.
 - **Platform**: Chrome Browser Extension (Manifest V3)
 - **Key Focus Areas**:
