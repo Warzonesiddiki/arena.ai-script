@@ -133,6 +133,18 @@ describe('Manifest V3 service worker', () => {
     expect(response).toEqual(expect.objectContaining({ ok: true, protocol: 1 }));
   });
 
+  it('ignores unrelated alarms without creating schedule or trigger due runs', async () => {
+    const mock = installChromeMock('8.0.0');
+    await import('../../../src/background/service-worker');
+    const alarmListener = mock.alarmListeners[0];
+    if (!alarmListener) throw new Error('alarm listener was not registered');
+
+    alarmListener({ name: 'unrelated-alarm', scheduledTime: 1_000 } as chrome.alarms.Alarm);
+    await Promise.resolve();
+
+    expect(mock.createAlarm).not.toHaveBeenCalled();
+  });
+
   it('runs the startup lifecycle callback without retaining state', async () => {
     const mock = installChromeMock('8.0.0');
     const lifecycleLog = jest.spyOn(console, 'info').mockImplementation();

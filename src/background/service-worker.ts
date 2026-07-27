@@ -3,6 +3,7 @@ import { RuntimeStatusStore } from './runtime-status';
 import { OrchestrationService } from './orchestration-service';
 import { isOrchestrationRequest } from './orchestration-messages';
 import { ScheduledAgentManager } from '../scheduling/schedule-manager';
+import { TriggerManager } from '../triggers/trigger-manager';
 import {
   isEventMessage,
   isHandshakeRequest,
@@ -25,6 +26,7 @@ const runtimeStatus = new RuntimeStatusStore();
 const workerTracer = new Tracer();
 const orchestration = new OrchestrationService({ tracer: workerTracer });
 const scheduledAgents = new ScheduledAgentManager();
+const triggers = new TriggerManager();
 const notificationCenter = new NotificationCenter({
   nativeApi: { create: (id, options) => chrome.notifications.create(id, options) },
 });
@@ -73,6 +75,17 @@ chrome.runtime.onStartup.addListener(() => logLifecycle('browser startup'));
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   void scheduledAgents.handleAlarm(alarm.name)
+    .then(async (dueRun) => {
+      if (!dueRun) return;
+      // Phase 5C: an internal schedule due run may only create further
+      // approval-required trigger due runs. Nothing is executed here.
+      await triggers.dispatch({
+        type: 'schedule-due-run-created',
+        scheduleId: dueRun.scheduleId,
+        dueRunId: dueRun.id,
+        observedAt: dueRun.firedAt,
+      });
+    })
     .catch((error: unknown) => workerRecovery.captureGlobal('scheduledAgents.handleAlarm', error));
 });
 

@@ -22,6 +22,7 @@ module.exports = {
     'src/notifications/**/*.ts',
     'src/reflection/**/*.ts',
     'src/scheduling/**/*.ts',
+    'src/triggers/**/*.ts',
     'src/commands/**/*.ts',
     'src/memory/**/*.ts',
     'src/orchestration/**/*.ts',
