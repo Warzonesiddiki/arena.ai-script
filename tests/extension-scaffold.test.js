@@ -41,4 +41,30 @@ for (const artifact of requiredArtifacts) {
 
 assert.ok(fs.existsSync(path.join(DIST, 'icons/aamp-128.png')), 'Native notification icon is missing from dist.');
 
+// The built bundle must actually contain the safety-critical logic, not merely
+// have it present in src/. Minification renames classes, so assert on
+// distinctive string literals that survive it.
+const workerBundle = fs.readFileSync(path.join(DIST, manifest.background.service_worker), 'utf8');
+const requiredBehaviour = {
+  'no-unreviewed-egress': 'safety policy engine rules',
+  'audit-genesis': 'audit log hash chain',
+  'resume-from-snapshot': 'recovery proposal steps',
+  'hibernation:workflows': 'hibernation storage key',
+  'audit:log:v1': 'audit storage key',
+  'background:agent-control-state': 'durable control state key',
+};
+for (const [literal, description] of Object.entries(requiredBehaviour)) {
+  assert.ok(
+    workerBundle.includes(literal),
+    `Service worker bundle is missing ${description} (expected literal "${literal}"). A completed module may have become unreachable.`
+  );
+}
+
+// No bundle may ship an HTML-string sink or dynamic code evaluation.
+for (const script of ['background/service-worker.js', 'sidepanel/sidepanel.js', 'popup/popup.js', 'options/options.js', 'content/arena-bridge.js']) {
+  const source = fs.readFileSync(path.join(DIST, script), 'utf8');
+  assert.ok(!source.includes('innerHTML'), `${script} must not use innerHTML.`);
+  assert.ok(!/\beval\(/u.test(source), `${script} must not use eval.`);
+}
+
 console.log('Extension scaffold validation passed.');
