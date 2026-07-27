@@ -110,4 +110,120 @@ describe('StorageLayer', () => {
 
     await expect(layer.getLarge('corruptible')).rejects.toBeInstanceOf(StorageCorruptionError);
   });
+  it('rejects an unsupported stored format without attempting to decode it', async () => {
+    const { layer } = makeStorage();
+    await layer.putLarge('legacy', { text: 'value' });
+
+    const database = (layer as unknown as { database: IDBDatabase }).database;
+    if (!database) throw new Error('database was not initialized');
+    const transaction = database.transaction('records', 'readwrite');
+    const store = transaction.objectStore('records');
+    const record = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const request = store.get('legacy');
+      request.onsuccess = () => resolve(request.result as Record<string, unknown>);
+      request.onerror = () => reject(request.error);
+    });
+    // A record written by a future or foreign codec must never be decompressed.
+    record.algorithm = 'zstd-v2';
+    store.put(record);
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+
+    await expect(layer.getLarge('legacy')).rejects.toBeInstanceOf(StorageCorruptionError);
+  });
+
+  it('reports undecodable payload bytes as corruption rather than throwing raw', async () => {
+    const { layer } = makeStorage();
+    await layer.putLarge('garbled', { text: 'value' });
+
+    const database = (layer as unknown as { database: IDBDatabase }).database;
+    if (!database) throw new Error('database was not initialized');
+    const transaction = database.transaction('records', 'readwrite');
+    const store = transaction.objectStore('records');
+    const record = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const request = store.get('garbled');
+      request.onsuccess = () => resolve(request.result as Record<string, unknown>);
+      request.onerror = () => reject(request.error);
+    });
+    // Replace the compressed block with bytes LZ4 cannot decode.
+    record.data = new Uint8Array([0xff, 0xff, 0xff, 0xff]).buffer;
+    store.put(record);
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+
+    await expect(layer.getLarge('garbled')).rejects.toBeInstanceOf(StorageCorruptionError);
+  });
+
+  it('returns null for a key that was never written', async () => {
+    const { layer } = makeStorage();
+    await expect(layer.getLarge('absent')).resolves.toBeNull();
+    await expect(layer.getLocal('absent')).resolves.toBeNull();
+  });
+
+  it('removes a large record and drops it from the index', async () => {
+    const { layer } = makeStorage();
+    await layer.putLarge('doomed', { text: 'value' });
+    expect((await layer.listLarge()).map((entry) => entry.key)).toContain('doomed');
+
+    await layer.removeLarge('doomed');
+
+    await expect(layer.getLarge('doomed')).resolves.toBeNull();
+    expect((await layer.listLarge()).map((entry) => entry.key)).not.toContain('doomed');
+    // Removing again is a no-op rather than an error.
+    await expect(layer.removeLarge('doomed')).resolves.toBeUndefined();
+  });
+
+  it('round-trips values that stress the JSON and compression paths', async () => {
+    const { layer } = makeStorage();
+    const tricky = {
+      unicode: 'café ✅ 日本語 🎯',
+      nested: { deep: { deeper: [1, 2, { three: true }] } },
+      empty: {},
+      emptyList: [],
+      nullish: null,
+      // Highly repetitive text exercises the LZ4 match path.
+      repetitive: 'abcabcabc'.repeat(500),
+      negative: -12.5,
+    };
+
+    await layer.putLarge('tricky', tricky);
+    await expect(layer.getLarge('tricky')).resolves.toEqual(tricky);
+  });
+
+  it('reports compression metadata for a stored record', async () => {
+    const { layer } = makeStorage();
+    const metadata = await layer.putLarge('measured', { text: 'x'.repeat(5_000) });
+
+    expect(metadata).toEqual(expect.objectContaining({ key: 'measured', schemaVersion: 1 }));
+    // Highly repetitive input must actually compress.
+    expect(metadata.compressedBytes).toBeLessThan(metadata.originalBytes);
+    expect(metadata.checksum).toEqual(expect.any(Number));
+  });
+
+  it('overwrites an existing record in place rather than duplicating it', async () => {
+    const { layer } = makeStorage();
+    await layer.putLarge('mutable', { version: 1 });
+    await layer.putLarge('mutable', { version: 2 });
+
+    await expect(layer.getLarge('mutable')).resolves.toEqual({ version: 2 });
+    expect((await layer.listLarge()).filter((entry) => entry.key === 'mutable')).toHaveLength(1);
+  });
+
+  it('refuses a non-positive maxRecordBytes at construction', () => {
+    expect(() => makeStorage({ maxRecordBytes: 0 })).toThrow(RangeError);
+    expect(() => makeStorage({ maxRecordBytes: -1 })).toThrow(RangeError);
+    expect(() => makeStorage({ maxRecordBytes: 1.5 })).toThrow(RangeError);
+  });
+
+  it('tolerates an estimate provider that reports nothing', async () => {
+    const { layer } = makeStorage({ estimate: async () => ({}) });
+    // No quota information must not block a legitimate write.
+    await expect(layer.putLarge('unmetered', { text: 'value' })).resolves.toEqual(
+      expect.objectContaining({ key: 'unmetered' }),
+    );
+  });
 });
