@@ -14,7 +14,7 @@ describe('Phase 3 deterministic orchestrator', () => {
     const plan = orchestrator.createPlan('Add validation', 'workflow:one');
     expect(plan).toEqual(expect.objectContaining({ id: 'plan-1', maxConcurrentAgents: 3 }));
     expect(plan.tasks.map((task) => task.role)).toEqual(['planner', 'coder', 'critic']);
-    expect(plan.tasks.find((task) => task.role === 'coder')?.dependsOn).toEqual(['planner']);
+    expect(plan.tasks.find((task) => task.role === 'coder')?.dependsOn).toEqual(['planner-1']);
   });
   it('scopes files and enforces three agents/twelve handoffs', () => {
     const orchestrator = create();

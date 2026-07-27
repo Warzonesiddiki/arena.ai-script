@@ -3,7 +3,7 @@
 **Platform**: Chrome Browser Extension (Manifest V3)  
 **Target Version**: v8.0 (Ultimate Vision)  
 **Total Subphases**: 100  
-**Last Updated**: 2026-07-26
+**Last Updated**: 2026-07-27
 
 ---
 
@@ -102,7 +102,8 @@
 
 **Implementation status:**
 - **3A–3D: Complete (2026-07-26).** Deterministic fixed-role planning, typed worker contracts, bounded file-only context scopes, cost reservations, approval gates, 3-agent cap, and 12-handoff circuit breaker are implemented.
-- **3E: Planned.** No automatic agent tab launch is exposed before the approval-aware multi-agent dashboard exists.
+- **3E: Complete (2026-07-27).** The Side Panel now exposes an approval-only multi-agent dashboard backed by worker-owned orchestration state, strict runtime-message validation, explicit Planner → Coder → Critic approval/lifecycle rules, cost-reservation visibility, and structured trace events. It still does **not** launch browser tabs, invoke models, execute tools, or mutate Arena content automatically.
+- **Implementation records:** [`PHASE-2D-3D-IMPLEMENTATION.md`](PHASE-2D-3D-IMPLEMENTATION.md) and [`PHASE-3E-IMPLEMENTATION.md`](PHASE-3E-IMPLEMENTATION.md).
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
@@ -118,6 +119,14 @@
 
 **Goal**: Make agents feel intelligent and transparent.
 
+**Implementation status:**
+- **4A: Complete (2026-07-27).** A persistent `AgentMemoryGraph` now stores only explicit human-approved summaries in the existing compressed IndexedDB storage layer, retrieves only through caller-supplied scopes, uses deterministic local token embeddings/ranking, emits bounded trace events, and rejects raw conversation/prompt/secret fields. No silent full-conversation retention or model-based embedding call was added.
+- **4B: Complete (2026-07-27).** A deterministic `CausalTraceDebugger` now converts existing trace events, Phase 3E orchestration snapshots, and cost-governance events into bounded causal graph nodes, edges, root-cause summaries, and explainable paths. It redacts sensitive attributes and does not invoke a model.
+- **4C: Complete (2026-07-27).** A deterministic `PostTaskReflectionBuilder` now produces bounded post-task reports, findings, recommendations, and human-reviewable memory candidates from orchestration and causal-debugger state. Model-authored reflection text and memory persistence remain explicit approval-gated actions.
+- **4D: Complete (2026-07-27).** A deterministic `OrchestrationHealthMonitor` now detects stalled running tasks, handoff-limit risk, Phase 3 active-agent cap pressure, pending approvals, blocked/failed tasks, and budget risk from existing orchestration, trace, and cost state. It recommends human-reviewed actions only and performs no automatic recovery or execution.
+- **4E: Complete (2026-07-27).** A deterministic `PerformanceAnalyticsEngine` now aggregates bounded workflow, role, trace, cost, health, memory, and reflection metrics from existing scoped inputs. It produces recommendations from local rules only, stores nothing by default, and adds no new telemetry collection channel.
+- **Implementation records:** [`PHASE-4A-IMPLEMENTATION.md`](PHASE-4A-IMPLEMENTATION.md), [`PHASE-4B-IMPLEMENTATION.md`](PHASE-4B-IMPLEMENTATION.md), [`PHASE-4C-IMPLEMENTATION.md`](PHASE-4C-IMPLEMENTATION.md), [`PHASE-4D-IMPLEMENTATION.md`](PHASE-4D-IMPLEMENTATION.md), and [`PHASE-4E-IMPLEMENTATION.md`](PHASE-4E-IMPLEMENTATION.md).
+
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
 | **4A** | Agent Memory Graph | Persistent semantic memory | IndexedDB + embedding-based retrieval | 3C | Remembers across sessions |
@@ -131,6 +140,11 @@
 ### PHASE 5: PERSISTENCE & SCHEDULING
 
 **Goal**: Enable true background and scheduled execution.
+
+**Implementation status:**
+- **5A: Complete (2026-07-27).** A durable `BackgroundAgentStateStore` now persists and restores bounded Phase 3 orchestration control-plane state through the existing compressed IndexedDB storage layer so MV3 worker suspension or tab closure does not erase dashboard visibility. It stores no prompts/conversations/context and cannot launch tabs, invoke models, execute tools, or mutate pages.
+- **5B: Complete (2026-07-27).** A deterministic `ScheduledAgentManager` now stores approval-gated one-time, interval, daily, and weekly schedule metadata, registers Chrome alarms, and converts fired alarms into approval-required due runs only. It performs no automatic execution and cannot launch tabs, invoke models, execute tools, or mutate Arena content.
+- **Implementation records:** [`PHASE-5A-IMPLEMENTATION.md`](PHASE-5A-IMPLEMENTATION.md) and [`PHASE-5B-IMPLEMENTATION.md`](PHASE-5B-IMPLEMENTATION.md).
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|

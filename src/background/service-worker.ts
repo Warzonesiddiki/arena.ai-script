@@ -1,6 +1,8 @@
 import { BridgeSessionManager } from '../bridge/session-manager';
 import { RuntimeStatusStore } from './runtime-status';
 import { OrchestrationService } from './orchestration-service';
+import { isOrchestrationRequest } from './orchestration-messages';
+import { ScheduledAgentManager } from '../scheduling/schedule-manager';
 import {
   isEventMessage,
   isHandshakeRequest,
@@ -12,17 +14,17 @@ import { ErrorRecoveryManager } from '../reliability/recovery-manager';
 /**
  * Manifest V3 lifecycle entry point.
  *
- * This worker intentionally has no in-memory product state. Manifest V3 workers
- * can be suspended at any time; persistent orchestration state belongs to the
- * Phase 0D storage layer, not module-level variables. The Content Bridge's
- * per-worker sessions are intentionally ephemeral and re-established by the
- * isolated content script whenever it loads.
+ * Manifest V3 workers can be suspended at any time. The active Phase 3E
+ * dashboard state and Content Bridge sessions are intentionally ephemeral;
+ * durable orchestration history belongs to the Phase 0D storage layer and later
+ * memory phases, not module-level variables.
  */
 const HEALTH_CHECK_MESSAGE = 'aamp:health-check';
 const RUNTIME_STATUS_MESSAGE = 'aamp:runtime-status';
 const runtimeStatus = new RuntimeStatusStore();
-const orchestration = new OrchestrationService();
 const workerTracer = new Tracer();
+const orchestration = new OrchestrationService({ tracer: workerTracer });
+const scheduledAgents = new ScheduledAgentManager();
 const notificationCenter = new NotificationCenter({
   nativeApi: { create: (id, options) => chrome.notifications.create(id, options) },
 });
@@ -69,6 +71,11 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => logLifecycle('browser startup'));
 
+chrome.alarms.onAlarm.addListener((alarm) => {
+  void scheduledAgents.handleAlarm(alarm.name)
+    .catch((error: unknown) => workerRecovery.captureGlobal('scheduledAgents.handleAlarm', error));
+});
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
 
@@ -82,8 +89,16 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   }
 
   if (isOrchestrationRequest(message)) {
-    try { sendResponse({ ok: true, orchestration: message.type === 'aamp:orchestration:create' ? orchestration.create(message.goal) : message.type === 'aamp:orchestration:approve' ? orchestration.approve(message.taskId) : orchestration.snapshot() }); }
-    catch (error) { sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Orchestration request failed.' }); }
+    try {
+      const orchestrationSnapshot = message.type === 'aamp:orchestration:create'
+        ? orchestration.create(message.goal)
+        : message.type === 'aamp:orchestration:approve'
+          ? orchestration.approve(message.taskId)
+          : orchestration.snapshot();
+      sendResponse({ ok: true, orchestration: orchestrationSnapshot });
+    } catch (error) {
+      sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Orchestration request failed.' });
+    }
     return;
   }
 
@@ -102,11 +117,6 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     });
   return true;
 });
-
-function isOrchestrationRequest(message: unknown): message is { type: 'aamp:orchestration:create'; goal: string } | { type: 'aamp:orchestration:approve'; taskId: string } | { type: 'aamp:orchestration:status' } {
-  if (typeof message !== 'object' || message === null) return false; const value = message as { type?: unknown; goal?: unknown; taskId?: unknown };
-  return (value.type === 'aamp:orchestration:create' && typeof value.goal === 'string' && value.goal.length <= 4000) || (value.type === 'aamp:orchestration:approve' && typeof value.taskId === 'string') || value.type === 'aamp:orchestration:status';
-}
 
 function isRuntimeStatusRequest(message: unknown): message is { type: typeof RUNTIME_STATUS_MESSAGE } {
   return typeof message === 'object'

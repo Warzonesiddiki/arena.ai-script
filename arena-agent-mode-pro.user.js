@@ -446,6 +446,10 @@
         promptEnhancer: { type:'boolean', default:true, group:'agent' },
         autoContinue: { type:'boolean', default:true, group:'agent' },
         autoContinueDelay: { type:'number', default:2000, min:500, max:10000, step:500, group:'agent' },
+        autoContinueSendMessage: { type:'boolean', default:true, group:'agent', description:'Send a continue chat message when no Continue button exists' },
+        autoContinueIdleMessageDelay: { type:'number', default:30000, min:1000, max:300000, step:1000, group:'agent', description:'Idle time before sending continue message' },
+        autoContinueMessageCooldown: { type:'number', default:30000, min:1000, max:300000, step:1000, group:'agent', description:'Minimum time between automatic continue messages' },
+        autoContinueMessage: { type:'string', default:'continue', group:'agent', description:'Message sent when Arena has no Continue button' },
         notificationsEnabled: { type:'boolean', default:true, group:'agent' },
         toastVerbosity: { type:'string', default:'normal', enum:['silent','low','normal','high'], group:'agent', description:'Toast notification frequency' },
         autoOpenWorkspace: { type:'boolean', default:true, group:'agent' },
@@ -581,6 +585,10 @@
                 if (saved.fontSize === undefined) saved.fontSize = 14;
                 if (saved.autoContinueDelay === undefined) saved.autoContinueDelay = 2000;
             }
+            if (saved.autoContinueSendMessage === undefined) saved.autoContinueSendMessage = true;
+            if (saved.autoContinueIdleMessageDelay === undefined) saved.autoContinueIdleMessageDelay = 30000;
+            if (saved.autoContinueMessageCooldown === undefined) saved.autoContinueMessageCooldown = 30000;
+            if (saved.autoContinueMessage === undefined) saved.autoContinueMessage = 'continue';
             saved.version = SCRIPT_VERSION;
         }
 
@@ -2157,6 +2165,8 @@ function update() {
 
         let _autoContinueObserver = null;
         let _autoContinueTickId = null;
+        let _lastAutoContinueMessageAt = 0;
+        let _lastAutoContinueText = '';
 
         function setupAutoContinue() {
             const delay = Config.get('autoContinueDelay') || 2000;
@@ -2176,31 +2186,123 @@ function update() {
                 if (!Config.get('autoContinue') || !S.isAgentMode) return;
                 if (S.isAgentRunning || S.isAgentThinking) { S.agentIdleSince = null; return; }
                 if (!S.agentIdleSince) { S.agentIdleSince = Date.now(); return; }
-                if (Date.now() - S.agentIdleSince > 30000) {
-                    findAndClickContinue(delay, seenButtons);
-                    S.agentIdleSince = Date.now();
+
+                const idleMs = Date.now() - S.agentIdleSince;
+                const clicked = findAndClickContinue(delay, seenButtons);
+                if (clicked) { S.agentIdleSince = Date.now(); return; }
+
+                const messageDelay = Config.get('autoContinueIdleMessageDelay') || 30000;
+                if (idleMs >= messageDelay) {
+                    if (sendAutoContinueMessage()) S.agentIdleSince = Date.now();
                 }
             }, 5000);
         }
 
         function findAndClickContinue(delay, seenButtons) {
-            const buttons = Array.from(document.querySelectorAll('button:not([disabled])'));
+            const buttons = Array.from(document.querySelectorAll('button:not([disabled]), [role="button"]:not([aria-disabled="true"])'));
             for (const btn of buttons) {
-                const text = btn.textContent.trim().toLowerCase();
-                const isContinue = ['keep working','continue','keep going','proceed','go ahead','next step','retry'].some(w => text.includes(w));
+                const text = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').trim().toLowerCase();
+                const isKeepWorking = text.includes('keep working') || text.includes('keep going');
+                const isContinue = ['keep working','continue','keep going','proceed','go ahead','next step','retry','resume'].some(w => text.includes(w));
                 if (isContinue && !seenButtons.has(btn)) {
                     seenButtons.add(btn);
                     setTimeout(() => {
                         if (!Config.get('autoContinue')) return;
-                        if (btn.isConnected && !btn.disabled) {
+                        if (btn.isConnected && !isDisabled(btn)) {
                             btn.click();
                             S.turnCount++;
-                            EventBus.emit('agent:autoContinued', { btn });
+                            EventBus.emit('agent:autoContinued', { btn, mode: 'button', keepWorking: isKeepWorking });
+                            if (isKeepWorking) {
+                                setTimeout(() => sendAutoContinueMessage('continue', { force: true }), 300);
+                            }
                         }
                     }, delay);
-                    break;
+                    return true;
                 }
             }
+            return false;
+        }
+
+        function sendAutoContinueMessage(messageOverride = null, options = {}) {
+            if (!Config.get('autoContinue') || !Config.get('autoContinueSendMessage')) return false;
+            if (S.isAgentRunning || S.isAgentThinking) return false;
+
+            const message = String(messageOverride || Config.get('autoContinueMessage') || 'continue').trim().slice(0, 500);
+            if (!message) return false;
+
+            const now = Date.now();
+            const cooldown = Config.get('autoContinueMessageCooldown') || 30000;
+            if (!options.force && _lastAutoContinueText === message && now - _lastAutoContinueMessageAt < cooldown) return false;
+
+            const input = findChatInput();
+            if (!input || !input.isConnected || isDisabled(input)) return false;
+            if (getInputText(input).trim()) return false;
+
+            setInputText(input, message);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+
+            const sent = triggerSend(input);
+            if (sent) {
+                _lastAutoContinueMessageAt = now;
+                _lastAutoContinueText = message;
+                S.turnCount++;
+                EventBus.emit('agent:autoContinued', { message, mode: 'message' });
+                log('🔄 AutoContinue: sent continue message');
+            }
+            return sent;
+        }
+
+        function findChatInput() {
+            const candidates = Array.from(document.querySelectorAll('textarea, input[type="text"], [contenteditable="true"], [role="textbox"]'))
+                .filter(el => !el.closest?.(`[id^="${SCRIPT_ID}"], .aamp-modal, .aamp-panel, .aamp-toast`))
+                .filter(el => !isDisabled(el));
+            const withSend = candidates.find(el => !!findSendButton(el));
+            if (withSend) return withSend;
+            return candidates.reverse().find(el => el.offsetParent !== null || el.isContentEditable || el.matches('textarea, input')) || null;
+        }
+
+        function getInputText(input) {
+            if ('value' in input) return input.value || '';
+            return input.textContent || '';
+        }
+
+        function setInputText(input, text) {
+            if ('value' in input) {
+                const proto = input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+                const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                if (setter) setter.call(input, text);
+                else input.value = text;
+                return;
+            }
+            input.textContent = text;
+        }
+
+        function triggerSend(input) {
+            const sendBtn = findSendButton(input);
+            if (sendBtn && !isDisabled(sendBtn)) { sendBtn.click(); return true; }
+            input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter' }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter' }));
+            return true;
+        }
+
+        function findSendButton(input) {
+            const form = input.closest?.('form');
+            const selectors = [SEL.sendButton, 'button[type="submit"]', 'button[aria-label*="send" i]', 'button[title*="send" i]', 'button[class*="send" i]'];
+            for (const root of [form, document]) {
+                if (!root) continue;
+                for (const selector of selectors) {
+                    try {
+                        const btn = root.querySelector(selector);
+                        if (btn && !isDisabled(btn)) return btn;
+                    } catch {}
+                }
+            }
+            return null;
+        }
+
+        function isDisabled(el) {
+            return !!(el.disabled || el.getAttribute?.('aria-disabled') === 'true' || el.matches?.('[disabled]'));
         }
 
         function notifyUser(title, body) {
@@ -4309,14 +4411,254 @@ const InsightsDashboard = (() => {
     // ============================================================
 
     const MultiAgentOrchestration = (() => {
-        const _agents = new Map();
-        function init() { log('🎭 Multi-Agent Orchestration'); }
-        function addAgent(id, config) { _agents.set(id, { id, config, status: 'idle', startTime: null }); EventBus.emit('orchestration:agentAdded', { id }); }
-        function removeAgent(id) { const a = _agents.get(id); if (a) { a.status = 'stopped'; _agents.delete(id); EventBus.emit('orchestration:agentRemoved', { id }); } }
-        function getStatus(id) { const a = _agents.get(id); return a ? { id, status: a.status, startTime: a.startTime } : null; }
-        function listAgents() { return Array.from(_agents.values()).map(a => ({ id: a.id, status: a.status })); }
-        function orchestrate(agents) { agents.forEach(a => addAgent(a.id, a.config)); return { total: agents.length, agents: listAgents() }; }
-        return { init, addAgent, removeAgent, getStatus, listAgents, orchestrate };
+        const STORAGE_KEY = `${SCRIPT_ID}_v8_feedback_lab`;
+        const MAX_TRACES = 200;
+        const MAX_MEMORY = 50;
+        const MAX_SCHEDULES = 20;
+        let _panel = null;
+        let _state = { plan: null, memory: [], schedules: [], traces: [] };
+
+        function init() {
+            load();
+            installFeedbackButton();
+            if (typeof CommandPalette !== 'undefined' && CommandPalette.addCommand) {
+                CommandPalette.addCommand({ icon:'🎭', label:'V8 Feedback Lab', tags:'multi agent memory health analytics schedule v8 extension', action:() => open() });
+            }
+            EventBus.on('*', (payload) => recordTrace('event', payload));
+            log('🎭 Multi-Agent Orchestration · V8 feedback lab');
+        }
+
+        function load() {
+            try {
+                const raw = GM_getValue(STORAGE_KEY, null);
+                if (raw) _state = { ..._state, ...JSON.parse(raw) };
+            } catch (e) { warn('V8 feedback state load failed', e); }
+        }
+
+        function save() {
+            try { GM_setValue(STORAGE_KEY, JSON.stringify(_state)); } catch (e) { warn('V8 feedback state save failed', e); }
+        }
+
+        function installFeedbackButton() {
+            if (document.getElementById(`${SCRIPT_ID}-v8-feedback-btn`)) return;
+            const btn = document.createElement('button');
+            btn.id = `${SCRIPT_ID}-v8-feedback-btn`;
+            btn.textContent = 'V8';
+            btn.title = 'Open Arena Agent Mode Pro V8 Feedback Lab';
+            btn.style.cssText = 'position:fixed;right:18px;bottom:78px;z-index:999980;border:1px solid var(--aamp-border);background:var(--aamp-surface);color:var(--aamp-accent);border-radius:999px;width:42px;height:42px;font-weight:800;box-shadow:var(--aamp-shadow);cursor:pointer;font-family:var(--aamp-font);';
+            btn.addEventListener('click', open);
+            document.body.appendChild(btn);
+        }
+
+        function createPlan(goal) {
+            const cleanGoal = String(goal || '').trim().slice(0, 1000);
+            if (!cleanGoal) { toast('Enter a goal first', 'warning'); return null; }
+            const tasks = [
+                { id:'planner-1', role:'planner', title:'Create implementation plan', status:'pending', dependsOn:[], approved:false, progress:0, estimatedCostUsd:0.05 },
+                { id:'coder-1', role:'coder', title:'Implement approved plan', status:'pending', dependsOn:['planner-1'], approved:false, progress:0, estimatedCostUsd:0.25 },
+                { id:'critic-1', role:'critic', title:'Review implementation', status:'pending', dependsOn:['coder-1'], approved:false, progress:0, estimatedCostUsd:0.10 },
+            ];
+            _state.plan = { id:`plan-${Date.now().toString(36)}`, goal:cleanGoal, createdAt:Date.now(), maxAgents:3, maxHandoffs:12, handoffs:0, activeAgents:0, tasks };
+            recordTrace('orchestration.plan.created', { planId:_state.plan.id, taskCount:3 });
+            save(); render(); return _state.plan;
+        }
+
+        function approve(taskId) {
+            const plan = _state.plan;
+            if (!plan) return false;
+            const task = plan.tasks.find(t => t.id === taskId);
+            if (!task) return false;
+            const blocker = approvalBlocker(task);
+            if (blocker) { toast(blocker, 'warning'); return false; }
+            task.approved = true;
+            recordTrace('orchestration.task.approved', { taskId, role:task.role });
+            save(); render(); return true;
+        }
+
+        function markTask(taskId, status) {
+            const plan = _state.plan;
+            if (!plan) return false;
+            const task = plan.tasks.find(t => t.id === taskId);
+            if (!task) return false;
+            if (status === 'running' && (!task.approved || task.dependsOn.some(id => plan.tasks.find(t => t.id === id)?.status !== 'completed'))) {
+                toast('Task requires approval and completed dependencies', 'warning'); return false;
+            }
+            task.status = status;
+            task.progress = status === 'completed' || status === 'blocked' || status === 'failed' ? 1 : status === 'running' ? 0.5 : 0;
+            recordTrace('orchestration.task.statusChanged', { taskId, role:task.role, status });
+            save(); render(); return true;
+        }
+
+        function approvalBlocker(task) {
+            if (!task.dependsOn.length) return null;
+            const plan = _state.plan;
+            for (const depId of task.dependsOn) {
+                const dep = plan.tasks.find(t => t.id === depId);
+                if (!dep?.approved && dep?.status !== 'completed') return `${task.role} waits for ${depId} approval`;
+            }
+            return null;
+        }
+
+        function remember(title, summary) {
+            const cleanTitle = String(title || '').trim().slice(0, 160);
+            const cleanSummary = String(summary || '').trim().slice(0, 800);
+            if (!cleanTitle || !cleanSummary) { toast('Memory needs title and summary', 'warning'); return null; }
+            const node = { id:`mem-${Date.now().toString(36)}`, title:cleanTitle, summary:cleanSummary, kind:'lesson', tags:['feedback'], createdAt:Date.now(), approvedByHuman:true };
+            _state.memory.unshift(node);
+            _state.memory = _state.memory.slice(0, MAX_MEMORY);
+            recordTrace('memory.node.remembered', { memoryId:node.id });
+            save(); render(); return node;
+        }
+
+        function addSchedule(goal, minutes) {
+            const cleanGoal = String(goal || _state.plan?.goal || '').trim().slice(0, 500);
+            const interval = Math.max(5, Math.min(525600, Number(minutes) || 60));
+            if (!cleanGoal) { toast('Schedule needs a goal', 'warning'); return null; }
+            const schedule = { id:`schedule-${Date.now().toString(36)}`, goal:cleanGoal, intervalMinutes:interval, nextRunAt:Date.now() + interval * 60000, approvedByHuman:true, enabled:true };
+            _state.schedules.unshift(schedule);
+            _state.schedules = _state.schedules.slice(0, MAX_SCHEDULES);
+            recordTrace('schedule.created', { scheduleId:schedule.id, intervalMinutes:interval });
+            save(); render(); return schedule;
+        }
+
+        function recordTrace(name, payload = {}) {
+            if (name === 'event' && (!payload || typeof payload !== 'object')) return;
+            _state.traces.unshift({ id:`trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`, name, timestamp:Date.now(), payload:sanitizePayload(payload) });
+            _state.traces = _state.traces.slice(0, MAX_TRACES);
+        }
+
+        function sanitizePayload(payload) {
+            const out = {};
+            for (const [k,v] of Object.entries(payload || {}).slice(0, 8)) {
+                if (/prompt|conversation|secret|token|api|html|dom|content/i.test(k)) continue;
+                if (v === null || ['string','number','boolean'].includes(typeof v)) out[k] = typeof v === 'string' ? v.slice(0, 200) : v;
+            }
+            return out;
+        }
+
+        function health() {
+            const plan = _state.plan;
+            const issues = [];
+            if (plan) {
+                const pending = plan.tasks.filter(t => !t.approved).length;
+                const blocked = plan.tasks.filter(t => t.status === 'blocked').length;
+                const failed = plan.tasks.filter(t => t.status === 'failed').length;
+                if (pending) issues.push({ severity:'info', kind:'approval-wait', summary:`${pending} approval(s) pending` });
+                if (blocked) issues.push({ severity:'warning', kind:'blocked-task', summary:`${blocked} task(s) blocked` });
+                if (failed) issues.push({ severity:'critical', kind:'failed-task', summary:`${failed} task(s) failed` });
+                if (plan.handoffs >= 9) issues.push({ severity:'warning', kind:'handoff-risk', summary:`Handoffs ${plan.handoffs}/12` });
+            }
+            return { status:issues.some(i=>i.severity==='critical')?'critical':issues.length?'attention':'healthy', issues };
+        }
+
+        function analytics() {
+            const plan = _state.plan;
+            const tasks = plan?.tasks || [];
+            return {
+                active:!!plan,
+                taskCount:tasks.length,
+                completedTasks:tasks.filter(t=>t.status==='completed').length,
+                pendingApprovals:tasks.filter(t=>!t.approved).length,
+                estimatedCostUsd:tasks.reduce((n,t)=>n+t.estimatedCostUsd,0),
+                memoryNodes:_state.memory.length,
+                schedules:_state.schedules.length,
+                traces:_state.traces.length,
+                health:health().status,
+            };
+        }
+
+        function reflection() {
+            const h = health();
+            return {
+                workflowStatus: h.status === 'healthy' && _state.plan?.tasks.every(t=>t.status==='completed') ? 'completed' : h.status,
+                findings: h.issues.map(i => i.summary),
+                recommendations: [
+                    'Use this feedback lab to validate extension workflows before moving them to MV3.',
+                    'Do not execute model/tool work from this userscript parity surface.',
+                    h.status !== 'healthy' ? 'Resolve approvals/blockers before continuing.' : 'No immediate action required.',
+                ],
+            };
+        }
+
+        function open() { if (!_panel) build(); render(); _panel.classList.remove('aamp-hidden'); }
+        function close() { if (_panel) _panel.classList.add('aamp-hidden'); }
+        function toggle() { _panel && !_panel.classList.contains('aamp-hidden') ? close() : open(); }
+
+        function build() {
+            _panel = document.createElement('div');
+            _panel.id = `${SCRIPT_ID}-v8-feedback`;
+            _panel.className = 'aamp-hidden';
+            _panel.style.cssText = 'position:fixed;inset:6vh 5vw;z-index:999999;background:var(--aamp-surface);border:1px solid var(--aamp-border);border-radius:16px;box-shadow:var(--aamp-shadow);display:flex;flex-direction:column;font-family:var(--aamp-font);color:var(--aamp-text);overflow:hidden;';
+            _panel.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--aamp-surface2);border-bottom:1px solid var(--aamp-border);"><strong>🎭 V8 Extension Feedback Lab</strong><button data-aamp-v8-close style="background:none;border:0;color:var(--aamp-text);font-size:18px;cursor:pointer;">✕</button></div><div data-aamp-v8-body style="flex:1;overflow:auto;padding:16px;"></div>`;
+            _panel.addEventListener('click', onPanelClick);
+            document.body.appendChild(_panel);
+        }
+
+        function render() {
+            if (!_panel) return;
+            const body = _panel.querySelector('[data-aamp-v8-body]');
+            const plan = _state.plan;
+            const h = health();
+            body.innerHTML = `
+                <div style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:14px;">
+                  <section class="aamp-card" style="padding:12px;border:1px solid var(--aamp-border);border-radius:12px;">
+                    <h3>Create approval-only plan</h3>
+                    <textarea data-aamp-v8-goal style="width:100%;min-height:64px;background:var(--aamp-bg);color:var(--aamp-text);border:1px solid var(--aamp-border);border-radius:8px;padding:8px;">${esc(plan?.goal || '')}</textarea>
+                    <button data-aamp-v8-create style="margin-top:8px;background:var(--aamp-accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;">Create plan</button>
+                    <div style="margin-top:12px;display:grid;gap:8px;">${renderTasks(plan)}</div>
+                  </section>
+                  <section class="aamp-card" style="padding:12px;border:1px solid var(--aamp-border);border-radius:12px;">
+                    <h3>Health + Analytics</h3>
+                    <pre style="white-space:pre-wrap;color:var(--aamp-text2);font-size:12px;">${esc(JSON.stringify({ health:h, analytics:analytics(), reflection:reflection() }, null, 2))}</pre>
+                  </section>
+                  <section class="aamp-card" style="padding:12px;border:1px solid var(--aamp-border);border-radius:12px;">
+                    <h3>Approved memory feedback</h3>
+                    <input data-aamp-v8-mem-title placeholder="Memory title" style="width:100%;background:var(--aamp-bg);color:var(--aamp-text);border:1px solid var(--aamp-border);border-radius:8px;padding:8px;margin-bottom:6px;">
+                    <textarea data-aamp-v8-mem-summary placeholder="Bounded summary only — no full chat" style="width:100%;min-height:56px;background:var(--aamp-bg);color:var(--aamp-text);border:1px solid var(--aamp-border);border-radius:8px;padding:8px;"></textarea>
+                    <button data-aamp-v8-memory style="margin-top:8px;background:var(--aamp-accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;">Save approved memory</button>
+                    <ul>${_state.memory.slice(0,5).map(m=>`<li><strong>${esc(m.title)}</strong><br><span style="color:var(--aamp-text2);font-size:12px;">${esc(m.summary)}</span></li>`).join('')}</ul>
+                  </section>
+                  <section class="aamp-card" style="padding:12px;border:1px solid var(--aamp-border);border-radius:12px;">
+                    <h3>Approval-gated schedules</h3>
+                    <input data-aamp-v8-schedule-goal placeholder="Schedule goal" value="${esc(plan?.goal || '')}" style="width:100%;background:var(--aamp-bg);color:var(--aamp-text);border:1px solid var(--aamp-border);border-radius:8px;padding:8px;margin-bottom:6px;">
+                    <input data-aamp-v8-schedule-minutes type="number" min="5" value="60" style="width:90px;background:var(--aamp-bg);color:var(--aamp-text);border:1px solid var(--aamp-border);border-radius:8px;padding:8px;"> min
+                    <button data-aamp-v8-schedule style="margin-left:8px;background:var(--aamp-accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;">Add schedule</button>
+                    <ul>${_state.schedules.slice(0,5).map(s=>`<li>${esc(s.goal)} · next ${new Date(s.nextRunAt).toLocaleString()} · due runs require approval</li>`).join('')}</ul>
+                  </section>
+                  <section style="grid-column:1/-1;padding:12px;border:1px solid var(--aamp-border);border-radius:12px;">
+                    <h3>Recent bounded traces</h3>
+                    <pre style="max-height:180px;overflow:auto;color:var(--aamp-text2);font-size:12px;">${esc(JSON.stringify(_state.traces.slice(0,20), null, 2))}</pre>
+                  </section>
+                </div>`;
+        }
+
+        function renderTasks(plan) {
+            if (!plan) return '<p style="color:var(--aamp-text2);">No plan yet.</p>';
+            return plan.tasks.map(t => {
+                const blocker = approvalBlocker(t);
+                return `<div style="border:1px solid var(--aamp-border);border-radius:10px;padding:8px;display:flex;gap:8px;align-items:center;justify-content:space-between;"><div><strong>${esc(t.role)}</strong> · ${esc(t.status)} · ${t.approved?'approved':blocker||'approval required'}<br><span style="color:var(--aamp-text2);font-size:12px;">${esc(t.title)} · $${t.estimatedCostUsd.toFixed(2)}</span></div><div><button data-aamp-v8-approve="${esc(t.id)}" ${t.approved||blocker?'disabled':''}>Approve</button><button data-aamp-v8-status="${esc(t.id)}:running">Run</button><button data-aamp-v8-status="${esc(t.id)}:completed">Done</button><button data-aamp-v8-status="${esc(t.id)}:blocked">Block</button></div></div>`;
+            }).join('');
+        }
+
+        function onPanelClick(e) {
+            const target = e.target;
+            if (target.matches('[data-aamp-v8-close]')) return close();
+            if (target.matches('[data-aamp-v8-create]')) return createPlan(_panel.querySelector('[data-aamp-v8-goal]')?.value || '');
+            if (target.matches('[data-aamp-v8-approve]')) return approve(target.getAttribute('data-aamp-v8-approve'));
+            if (target.matches('[data-aamp-v8-status]')) { const [id,status] = target.getAttribute('data-aamp-v8-status').split(':'); return markTask(id, status); }
+            if (target.matches('[data-aamp-v8-memory]')) return remember(_panel.querySelector('[data-aamp-v8-mem-title]')?.value, _panel.querySelector('[data-aamp-v8-mem-summary]')?.value);
+            if (target.matches('[data-aamp-v8-schedule]')) return addSchedule(_panel.querySelector('[data-aamp-v8-schedule-goal]')?.value, _panel.querySelector('[data-aamp-v8-schedule-minutes]')?.value);
+        }
+
+        function esc(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+
+        function addAgent(id, config) { if (!_state.plan) createPlan(config?.goal || id); return { id, status:'approval-required' }; }
+        function removeAgent(id) { return markTask(id, 'blocked'); }
+        function getStatus(id) { return _state.plan?.tasks.find(t=>t.id===id) || null; }
+        function listAgents() { return _state.plan?.tasks || []; }
+        function orchestrate(agents) { createPlan((agents || []).map(a => a.config?.goal || a.id).join('; ') || 'Legacy orchestration feedback'); return { total:_state.plan.tasks.length, agents:listAgents() }; }
+
+        return { init, open, close, toggle, createPlan, approve, markTask, remember, addSchedule, health, analytics, reflection, addAgent, removeAgent, getStatus, listAgents, orchestrate };
     })();
 
     const PluginRegistry = (() => {

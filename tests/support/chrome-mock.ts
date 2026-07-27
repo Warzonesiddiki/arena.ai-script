@@ -11,8 +11,11 @@ export interface ChromeMock {
   readonly startupListeners: StartupListener[];
   readonly messageListeners: MessageListener[];
   readonly chrome: typeof chrome;
+  readonly alarmListeners: Array<(alarm: chrome.alarms.Alarm) => void>;
   readonly setPanelBehavior: jest.Mock<Promise<void>, [chrome.sidePanel.PanelBehavior]>;
   readonly sendTabMessage: jest.Mock<Promise<unknown>, [number, unknown, { frameId?: number } | undefined]>;
+  readonly createAlarm: jest.Mock<void, [string, chrome.alarms.AlarmCreateInfo]>;
+  readonly clearAlarm: jest.Mock<Promise<boolean>, [string]>;
 }
 
 /**
@@ -23,8 +26,11 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
   const installedListeners: InstalledListener[] = [];
   const startupListeners: StartupListener[] = [];
   const messageListeners: MessageListener[] = [];
+  const alarmListeners: Array<(alarm: chrome.alarms.Alarm) => void> = [];
   const setPanelBehavior = jest.fn<Promise<void>, [chrome.sidePanel.PanelBehavior]>().mockResolvedValue();
   const sendTabMessage = jest.fn<Promise<unknown>, [number, unknown, { frameId?: number } | undefined]>();
+  const createAlarm = jest.fn<void, [string, chrome.alarms.AlarmCreateInfo]>();
+  const clearAlarm = jest.fn<Promise<boolean>, [string]>().mockResolvedValue(true);
 
   const mock = {
     runtime: {
@@ -37,6 +43,11 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
     },
     sidePanel: { setPanelBehavior },
     tabs: { sendMessage: sendTabMessage },
+    alarms: {
+      create: createAlarm,
+      clear: clearAlarm,
+      onAlarm: { addListener: jest.fn((listener: (alarm: chrome.alarms.Alarm) => void) => alarmListeners.push(listener)) },
+    }, 
   };
 
   Object.defineProperty(globalThis, 'chrome', {
@@ -49,8 +60,11 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
     installedListeners,
     startupListeners,
     messageListeners,
+    alarmListeners,
     chrome: mock as unknown as typeof chrome,
     setPanelBehavior,
     sendTabMessage,
+    createAlarm,
+    clearAlarm,
   };
 }
