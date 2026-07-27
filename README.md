@@ -1,6 +1,6 @@
 # ⚡ Arena Agent Mode Pro
 
-> **v8.0.0 — Chrome Extension Foundation**
+> **v8.0.0 — Chrome Extension**
 >
 > A Manifest V3 Chrome extension for transparent, safety-first assistance in [Arena.ai](https://arena.ai) Agent Mode.
 
@@ -8,38 +8,60 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 
 ## Current implementation status
 
-**Phases 0 and 1 are complete.** The repository now builds an unpacked Manifest V3 extension with:
+**Phases 0 through 6 are complete**, along with Phase 8C, 8E, 10 (local half), 11, 14, 15, 16, 17, and 18. Phase 7 integrations are deliberately **not** implemented — see [Security posture](#security-posture) below.
 
-- TypeScript + webpack 5 build pipeline and ES-module service worker
-- Native Side Panel, popup, and options-page entry points
-- Narrow Arena.ai host permissions (`arena.ai` and its subdomains only)
-- Tested TypeScript ports of `ModuleRegistry`, `EventBus v2`, `TickDispatcher`, and `buildModal()`
-- Jest 30, a scoped Chrome API mock, an 80% coverage floor for the ported runtime, and a reproducible local CI command
-- A schema-validated, HMAC-signed, replay-protected Content Bridge that accepts no page-facing messages and permits only bounded snapshot/status DOM operations
-- Hybrid `chrome.storage.local` + IndexedDB storage with LZ4-compressed large records, integrity checks, quota controls, and repairable indexing
-- A single scoped DOM observer that never falls back to `document.body`, centralized timer/observer ownership, bounded recovery fallbacks, structured correlation tracing, and mutation/heap performance budgets
-- Deterministic microdollar cost governance with hard per-workflow/per-agent reservation gates and projections
-- Grouped, verbosity-governed recovery notifications with native Chrome notification fallback
-- Build-artifact manifest validation before an extension is loaded in Chrome
+Work is sequenced by real dependency rather than by phase number, and anything that would need an unjustified permission is left explicitly blocked rather than stubbed.
 
-The legacy v7.2 userscript remains at `arena-agent-mode-pro.user.js` while its capabilities are ported in blueprint order. The next work item is **Phase 2B: Command Palette 2.0**; no multi-agent feature is enabled yet.
+| Phase | Scope | Status |
+|---|---|---|
+| **0A–0E** | MV3 scaffold, core utilities, signed Content Bridge, hybrid storage, test foundation | ✅ Complete |
+| **1A–1E** | Scoped DOM observer, centralised runtime, recovery, tracing, performance budgets | ✅ Complete |
+| **2A–2E** | Side Panel, command palette, notifications, modal system, cost governance | ✅ Complete |
+| **3A–3E** | Deterministic 3-agent orchestration, typed contracts, context scoping, approval-only dashboard | ✅ Complete |
+| **4A–4E** | Memory graph, causal debugger, reflection, health monitoring, analytics | ✅ Complete |
+| **5A–5E** | Background state, schedules, internal triggers, hibernation, recovery snapshots | ✅ Complete |
+| **6A–6E** | Capability tiers (up to 5 agents), routing, expanded roles, comparison, advanced cost controls, trace replay | ✅ Complete |
+| **7A–7E** | GitHub / Linear / VS Code / Slack / file system | ⛔ **Blocked by design** — egress gate and threat model delivered, integrations withheld |
+| **8C, 8E** | Timeline scrubber (session replay) and Focus Mode 3.0 | ✅ Complete |
+| **8A, 8B, 8D** | Infinite canvas, voice control, gestures | ⛔ Blocked — need 7E file access or microphone permission |
+| **14** | Agent behavior testing framework, simulation mode, golden tests | ✅ Complete |
+| **10 (partial)** | Tamper-evident audit log and policy engine (SSO/reporting blocked) | ✅ Complete |
+| **11** | Safety & ethics — constitutional rules, risk scoring, approval workflows | ✅ Complete |
+| **15** | What-if simulation and strategy comparison | ✅ Complete |
+| **16** | Self-modification — proposal only, safety model immutable | ✅ Complete |
+| **17** | Cost attribution and cross-workflow trends | ✅ Complete |
+| **18** | Knowledge distillation and reusable packs | ✅ Complete |
+| **9, 12, 13, 19, 20** | Collaboration, advanced tooling, marketplace, plugin ecosystem, future vision | ⬜ Not started |
+
+### Invariants that hold across every completed phase
+
+These are enforced in code and asserted in tests, not merely documented:
+
+- **No automatic execution.** No model invocation, tool execution, tab launch, schedule run, or trigger run happens without explicit human approval. Approval-gated APIs take a literal `approvedByHuman: true` and throw otherwise.
+- **Deterministic orchestration.** Planning, routing, scoring, and recovery are code. No LLM makes a coordination decision.
+- **Least privilege.** The manifest grants `alarms`, `notifications`, `sidePanel`, `storage`, and Arena hosts only — nothing else, verified by a manifest test.
+- **Bounded, redacted telemetry.** Traces hold primitives only; replay re-redacts sensitive keys on output.
+- **No page-facing command channel.** The Content Bridge is HMAC-signed, replay-protected, and accepts no `window.postMessage`.
+- **No dead code.** A reachability test walks the real import graph from every entry point and fails if a module ships untested-in-practice, so a "complete" phase is actually running.
 
 ## Blueprint and project documentation
 
 The implementation sequence and technical guardrails are documented in:
 
 - [20-Phase Zero-Compromise Blueprint](docs/20-PHASE-BLUEPRINT.md)
-- [Phase 3–6 Multi-Agent Technical Specification](docs/TECHNICAL-SPEC-PHASE-3-6.md)
-- [Phase 0A Implementation Record](docs/PHASE-0A-IMPLEMENTATION.md)
-- [Phase 0B & 0E Implementation Record](docs/PHASE-0B-0E-IMPLEMENTATION.md)
-- [Phase 0C Content Bridge Record](docs/PHASE-0C-IMPLEMENTATION.md)
-- [Phase 0D Storage Record](docs/PHASE-0D-IMPLEMENTATION.md)
-- [Phase 1A & 1B Record](docs/PHASE-1A-1B-IMPLEMENTATION.md)
-- [Phase 1C–1E Record](docs/PHASE-1C-1E-IMPLEMENTATION.md)
-- [Phase 2A Side Panel Record](docs/PHASE-2A-IMPLEMENTATION.md)
-- [Phase 2C Notification Record](docs/PHASE-2C-IMPLEMENTATION.md)
-- [Phase 2E Cost Governance Record](docs/PHASE-2E-IMPLEMENTATION.md)
 - [Documentation Index](docs/BLUEPRINT-INDEX.md)
+- [Phase 3–6 Multi-Agent Technical Specification](docs/TECHNICAL-SPEC-PHASE-3-6.md)
+- [Phase 5C Triggered Agents Record](docs/PHASE-5C-IMPLEMENTATION.md)
+- [Phase 5D–5E Hibernation and Recovery Record](docs/PHASE-5D-5E-IMPLEMENTATION.md)
+- [Phase 6 Multi-Agent Arena Mode Record](docs/PHASE-6-IMPLEMENTATION.md)
+- [Phase 7 Security Design](docs/PHASE-7-SECURITY-DESIGN.md)
+- [Phase 8C/8E and Phase 14 Record](docs/PHASE-8-14-IMPLEMENTATION.md)
+- [Phase 10/11 Audit and Safety Record](docs/PHASE-10-11-IMPLEMENTATION.md)
+- [Phase 15/17/18 Simulation, Attribution, and Knowledge Record](docs/PHASE-15-17-18-IMPLEMENTATION.md)
+- [Phase 16 Self-Modification Record](docs/PHASE-16-IMPLEMENTATION.md)
+- [Integration Wiring and Reachability](docs/INTEGRATION-WIRING.md)
+
+Earlier phase records (0A–4E) are listed in the [Documentation Index](docs/BLUEPRINT-INDEX.md).
 
 Key principles are deterministic coordination, minimum necessary context, observability before complexity, hard cost governance, and gradual rollout (a maximum of three agents in Phase 3 and five in Phase 6).
 
@@ -100,12 +122,35 @@ extension/public/       Static extension assets copied unchanged to dist/
   sidepanel/            Native Side Panel HTML
   options/              Options-page HTML
 src/
-  background/           Manifest V3 service worker entry
-  content/              Reserved Content Bridge entry (Phase 0C)
-  popup/                Popup behavior
-  sidepanel/            Side Panel behavior
-  options/              Options-page behavior
-  shared/               Shared extension-only helpers
+  analytics/            Deterministic performance analytics
+  audit/                Tamper-evident append-only audit hash chain
+  safety/               Constitutional risk and policy engine
+  background/           Service worker, orchestration service, durable control state
+  bridge/               Signed Content Bridge protocol, session manager, safe DOM ops
+  commands/             Command palette index and modal
+  comparison/           Phase 6C result comparison and scoring
+  configuration/        Proposal-only self-modification
+  core/                 ModuleRegistry, EventBus v2, TickDispatcher, buildModal
+  debugging/            Causal trace debugger
+  governance/           Cost reservations and Phase 6D advanced controls
+  health/               Orchestration health monitoring
+  hibernation/          Phase 5D compressed workflow hibernation
+  integrations/         Deny-by-default egress policy (no network I/O)
+  memory/               Scoped agent memory graph
+  notifications/        Grouped notification center
+  observability/        DOM observer, tracer, trace replay, performance monitor
+  orchestration/        Capability tiers, deterministic planner, router, safety guard
+  recovery/             Phase 5E recovery snapshots and proposals
+  reflection/           Post-task reflection reports
+  reliability/          Error recovery manager
+  knowledge/            Knowledge distillation and portable packs
+  scheduling/           Approval-gated schedules
+  simulation/           What-if strategy projection
+  testing/              Agent behavior harness and simulation mode
+  timeline/             Session replay scrubber with bookmark branching
+  focus/                Focus Mode 3.0 priority projection
+  triggers/             Approval-gated internal triggers
+  sidepanel/ popup/ options/ content/ shared/   Extension surfaces
 scripts/                Build cleanup and asset-copy steps
 tests/                  Extension artifact validation + legacy regression tests
 docs/                   Blueprint and implementation records
@@ -114,14 +159,16 @@ arena-agent-mode-pro.user.js  Legacy v7.2 userscript, retained during migration
 
 `dist/` is generated and intentionally ignored by Git; it is the only directory that should be loaded as an unpacked extension.
 
-## Security posture in Phase 0A
+## Security posture
 
-- The extension requests no blanket `<all_urls>` access.
-- The content script intentionally accepts no `window.postMessage` data and performs no page DOM changes.
-- The service worker stores no product state in memory; Manifest V3 workers may be suspended at any time. Phase 0D owns durable storage.
-- The service worker’s only current message is an internal extension-page health check, with a validated response shape.
+The extension requests **no** blanket `<all_urls>` access, no network egress beyond Arena, and no file-system access.
 
-The schema-validated, allow-listed Content Bridge and its tests are explicitly deferred to Phase 0C rather than silently creating a page-to-extension trust channel now.
+- **Content Bridge** — HMAC-signed and replay-protected, bound to the extension ID, Arena HTTPS origin, tab, and frame. It exposes no page-facing message channel and accepts no arbitrary selectors, HTML, scripts, or URLs.
+- **Approval by default** — schedules and triggers create `approvedForExecution: false` due runs only. Hibernation resume, snapshot restore, and result selection all require explicit approval.
+- **Capability tiers** — the 5-agent Phase 6 ceiling is opt-in. The default tier remains Phase 3's stricter 3-agent limit, and an override may only tighten a limit, never widen it.
+- **Cost governance** — hard microdollar reservation gates fail closed. Phase 6D's "auto-stop" is a *recommendation*; it never terminates work.
+- **Integrity checks** — hibernated records and recovery snapshots carry digests; tampered or approval-forged records are rejected on load.
+- **Egress policy** — `src/integrations/egress-policy.ts` is a deny-by-default gate for future integrations. It performs no network I/O, and a test asserts this against the source text. See [`docs/PHASE-7-SECURITY-DESIGN.md`](docs/PHASE-7-SECURITY-DESIGN.md).
 
 ## Legacy userscript
 

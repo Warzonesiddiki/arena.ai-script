@@ -152,4 +152,69 @@ describe('AgentMemoryGraph', () => {
     expect(await graph.retrieve('active approval', { memoryIds: ['mem:active'] }, 10)).toEqual([]);
     expect(await graph.exportScopedNodes({ workflowId: 'workflow:one' }, 10)).toEqual([]);
   });
+  it('rejects every documented raw field, not just conversation text', async () => {
+    const memory = new AgentMemoryGraph({ storage: makeStorage(), now: () => 1_800_000_000_000 });
+
+    // Each of these is a channel through which a transcript or secret could
+    // otherwise reach durable storage.
+    for (const field of ['conversation', 'messages', 'rawContent', 'rawPrompt', 'prompt', 'completion', 'secret', 'apiKey', 'token']) {
+      await expect(memory.remember({ ...approvedMemory(), [field]: 'sensitive value' } as never))
+        .rejects.toBeInstanceOf(AgentMemoryPolicyError);
+    }
+  });
+
+  it('rejects an invalid source type even when approval is claimed', async () => {
+    const memory = new AgentMemoryGraph({ storage: makeStorage(), now: () => 1_800_000_000_000 });
+
+    await expect(memory.remember(approvedMemory({ source: { type: 'model-asserted' as never, approvedByHuman: true } })))
+      .rejects.toBeInstanceOf(AgentMemoryPolicyError);
+    await expect(memory.remember(approvedMemory({ source: undefined as never })))
+      .rejects.toBeInstanceOf(AgentMemoryPolicyError);
+  });
+
+  it('rejects an expiry that is not in the future', async () => {
+    const now = 1_800_000_000_000;
+    const memory = new AgentMemoryGraph({ storage: makeStorage(), now: () => now });
+
+    await expect(memory.remember(approvedMemory({ expiresAt: now - 1 }))).rejects.toBeInstanceOf(AgentMemoryPolicyError);
+    await expect(memory.remember(approvedMemory({ expiresAt: now }))).rejects.toBeInstanceOf(AgentMemoryPolicyError);
+    await expect(memory.remember(approvedMemory({ expiresAt: 1.5 as never }))).rejects.toBeInstanceOf(AgentMemoryPolicyError);
+    // A genuine future expiry is accepted.
+    await expect(memory.remember(approvedMemory({ expiresAt: now + 60_000 }))).resolves.toEqual(
+      expect.objectContaining({ expiresAt: now + 60_000 }),
+    );
+  });
+
+  it('refuses an unscoped retrieval outright rather than returning the whole graph', async () => {
+    const memory = new AgentMemoryGraph({ storage: makeStorage(), now: () => 1_800_000_000_000 });
+    await memory.remember(approvedMemory());
+
+    // Scope is mandatory. Failing loudly is stronger than returning empty:
+    // a caller cannot mistake "no scope" for "no results".
+    await expect(memory.retrieve('planner', {})).rejects.toBeInstanceOf(AgentMemoryPolicyError);
+    await expect(memory.exportScopedNodes({})).rejects.toBeInstanceOf(AgentMemoryPolicyError);
+    await expect(memory.retrieve('planner', { workflowId: '../bad' })).rejects.toBeInstanceOf(AgentMemoryPolicyError);
+  });
+
+  it('rejects a stored graph with an unsupported schema on initialize', async () => {
+    const indexedDbFactory = new IDBFactory();
+    const chromeStorage = new MemoryChromeStorage();
+    const seed = makeStorage(indexedDbFactory, chromeStorage, 'memory-bad-schema');
+    await seed.putLarge('memory:agent-graph:v1', { schemaVersion: 99, nodes: [], edges: [] });
+
+    const reader = new AgentMemoryGraph({
+      storage: makeStorage(indexedDbFactory, chromeStorage, 'memory-bad-schema'),
+      storageKey: 'memory:agent-graph:v1',
+    });
+    await expect(reader.initialize()).rejects.toBeInstanceOf(AgentMemoryPolicyError);
+  });
+
+  it('bounds the search limit and ignores an empty query', async () => {
+    const memory = new AgentMemoryGraph({ storage: makeStorage(), now: () => 1_800_000_000_000 });
+    await memory.remember(approvedMemory());
+
+    await expect(memory.retrieve('   ', { tags: ['approval'] })).resolves.toEqual([]);
+    // A huge limit is clamped rather than honoured.
+    await expect(memory.retrieve('planner', { tags: ['approval'] }, 10_000)).resolves.toHaveLength(1);
+  });
 });

@@ -59,4 +59,51 @@ describe('OrchestrationService', () => {
     expect(() => service.approve('planner-1')).toThrow(/No active/u);
     expect(tracer.getEvents().map((event) => event.name)).toContain('orchestration.status.snapshot');
   });
+  it('releases prior cost reservations when a new plan replaces an old one', () => {
+    const service = new OrchestrationService({ planIdFactory: () => 'plan-1' });
+
+    const first = service.create('First goal');
+    expect(first.estimatedCostUsd).toBeGreaterThan(0);
+
+    // Creating a second plan must not leak the first plan's reservations, or
+    // the workflow budget would be silently consumed by abandoned work.
+    const second = service.create('Second goal');
+    expect(second.estimatedCostUsd).toBe(first.estimatedCostUsd);
+    expect(second.cards.every((card) => card.status !== 'blocked')).toBe(true);
+  });
+
+  it('reports an inactive snapshot before any plan exists', () => {
+    const service = new OrchestrationService({ planIdFactory: () => 'plan-1' });
+
+    expect(service.snapshot(false)).toEqual(expect.objectContaining({
+      active: false, planId: null, goal: null, cards: [], estimatedCostUsd: 0,
+    }));
+  });
+
+  it('refuses to transition a task when no plan is active', () => {
+    const service = new OrchestrationService({ planIdFactory: () => 'plan-1' });
+
+    expect(() => service.transition('planner-1', 'running')).toThrow('No active orchestration plan.');
+  });
+
+  it('drives a task through its full approved lifecycle', () => {
+    const service = new OrchestrationService({ planIdFactory: () => 'plan-1' });
+    service.create('Lifecycle goal');
+
+    service.approve('planner-1');
+    service.transition('planner-1', 'running');
+    const completed = service.transition('planner-1', 'completed');
+
+    expect(completed.cards.find((card) => card.id === 'planner-1')?.status).toBe('completed');
+    // Completing the planner unblocks approval of the coder.
+    expect(completed.cards.find((card) => card.id === 'coder-1')?.canApprove).toBe(true);
+  });
+
+  it('rejects an unknown task id for approval and transition', () => {
+    const service = new OrchestrationService({ planIdFactory: () => 'plan-1' });
+    service.create('Goal');
+
+    expect(() => service.approve('ghost-1')).toThrow(OrchestrationTransitionError);
+    expect(() => service.transition('ghost-1', 'running')).toThrow(OrchestrationTransitionError);
+  });
 });

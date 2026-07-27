@@ -65,4 +65,58 @@ describe('TickDispatcher', () => {
     dispatcher.unregister('broken');
     expect(dispatcher.list()).toEqual(['healthy']);
   });
+  it('rejects a non-positive cadence at construction', () => {
+    expect(() => new TickDispatcher({ cadenceMs: 0, scheduler: new FakeScheduler() })).toThrow(RangeError);
+    expect(() => new TickDispatcher({ cadenceMs: -1, scheduler: new FakeScheduler() })).toThrow(RangeError);
+    expect(() => new TickDispatcher({ cadenceMs: Number.NaN, scheduler: new FakeScheduler() })).toThrow(RangeError);
+  });
+
+  it('starting twice reuses the single interval', () => {
+    const scheduler = new FakeScheduler();
+    const dispatcher = new TickDispatcher({ cadenceMs: 100, scheduler });
+
+    dispatcher.start();
+    dispatcher.start();
+
+    // One central cadence, never two competing intervals.
+    expect(scheduler.setCalls).toBe(1);
+    expect(dispatcher.isRunning()).toBe(true);
+
+    dispatcher.stop();
+    expect(dispatcher.isRunning()).toBe(false);
+    // Stopping twice must not clear an already-cleared handle.
+    dispatcher.stop();
+    expect(scheduler.clearCalls).toBe(1);
+  });
+
+  it('lists and unregisters named work', () => {
+    const scheduler = new FakeScheduler();
+    const dispatcher = new TickDispatcher({ cadenceMs: 100, scheduler });
+    const task = jest.fn();
+
+    dispatcher.register('status', task, 100);
+    expect(dispatcher.list()).toEqual(['status']);
+
+    dispatcher.unregister('status');
+    expect(dispatcher.list()).toEqual([]);
+    // Unregistering something that is gone is safe.
+    expect(() => dispatcher.unregister('status')).not.toThrow();
+
+    scheduler.nowValue = 1_000;
+    dispatcher.tick();
+    expect(task).not.toHaveBeenCalled();
+  });
+
+  it('ticking while stopped still runs due work on demand', () => {
+    const scheduler = new FakeScheduler();
+    const dispatcher = new TickDispatcher({ cadenceMs: 100, scheduler });
+    const task = jest.fn();
+    dispatcher.register('manual', task, 100);
+
+    scheduler.nowValue = 500;
+    dispatcher.tick();
+
+    // A manual tick is how the Side Panel forces a refresh.
+    expect(task).toHaveBeenCalledTimes(1);
+  });
 });

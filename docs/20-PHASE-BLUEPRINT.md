@@ -144,21 +144,32 @@
 **Implementation status:**
 - **5A: Complete (2026-07-27).** A durable `BackgroundAgentStateStore` now persists and restores bounded Phase 3 orchestration control-plane state through the existing compressed IndexedDB storage layer so MV3 worker suspension or tab closure does not erase dashboard visibility. It stores no prompts/conversations/context and cannot launch tabs, invoke models, execute tools, or mutate pages.
 - **5B: Complete (2026-07-27).** A deterministic `ScheduledAgentManager` now stores approval-gated one-time, interval, daily, and weekly schedule metadata, registers Chrome alarms, and converts fired alarms into approval-required due runs only. It performs no automatic execution and cannot launch tabs, invoke models, execute tools, or mutate Arena content.
-- **Implementation records:** [`PHASE-5A-IMPLEMENTATION.md`](PHASE-5A-IMPLEMENTATION.md) and [`PHASE-5B-IMPLEMENTATION.md`](PHASE-5B-IMPLEMENTATION.md).
+- **5C: Complete (2026-07-27).** A deterministic `TriggerManager` now stores approval-gated **internal-only** trigger metadata (health-status change, schedule due run created, memory candidate created, and manual) and converts matching internal events into approval-required due runs only. Webhook, network, and file-change sources from the original 5C row are intentionally deferred: each needs a matching permission request, threat model, and adversarial tests. No new browser permission was added.
+- **5D: Complete (2026-07-27).** A deterministic `HibernationManager` compresses long-idle control-plane state into a minimal, digest-verified record (dropping derived presentation fields, which are recomputed on resume) and restores it only with explicit human approval.
+- **5E: Complete (2026-07-27).** A deterministic `RecoverySnapshotManager` captures bounded, integrity-checked control-plane snapshots in a per-plan ring buffer and derives an approval-gated recovery proposal. It never restores automatically and always reports `autoExecutable: false`.
+- **Implementation records:** [`PHASE-5A-IMPLEMENTATION.md`](PHASE-5A-IMPLEMENTATION.md), [`PHASE-5B-IMPLEMENTATION.md`](PHASE-5B-IMPLEMENTATION.md), [`PHASE-5C-IMPLEMENTATION.md`](PHASE-5C-IMPLEMENTATION.md), and [`PHASE-5D-5E-IMPLEMENTATION.md`](PHASE-5D-5E-IMPLEMENTATION.md).
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
 | **5A** | Background Agents | Tab-independent execution | Service worker + state restoration | 4A | Agents survive tab close |
 | **5B** | Scheduled Agents | Cron-style execution | `chrome.alarms` + complex scheduling rules | 5A | Reliable daily/weekly execution |
-| **5C** | Triggered Agents | Event-based activation | Webhook + file change support | 5A | Reacts to external events |
-| **5D** | Hibernation | Smart compression | Resume on demand | 5A | Resource efficient long-running agents |
-| **5E** | Recovery v2 | Snapshot system | Intelligent resume with context | 4D | 99%+ recovery success rate |
+| **5C** | Triggered Agents | Event-based activation | Internal event sources only (webhook/file deferred pending a security design) | 5A | Reacts to internal events with approval-required due runs |
+| **5D** | Hibernation | Smart compression | Approval-gated resume on demand | 5A | Resource efficient long-running agents |
+| **5E** | Recovery v2 | Snapshot system | Deterministic approval-gated recovery proposals | 4D | Reliable, reviewable recovery |
 
 ---
 
 ### PHASE 6: FULL MULTI-AGENT ARENA MODE (Up to 5 Agents)
 
 **Goal**: Scale multi-agent capabilities with proper infrastructure.
+
+**Implementation status: Complete (2026-07-27).**
+- **6A:** `DeterministicAgentRouter` adds deterministic dispatch ordering and load balancing under a central capability-tier gate (`phase3` = 3 agents/12 handoffs, `phase6` = 5/20). Capability is opt-in and overrides may only tighten limits. Routing always reports `autoDispatch: false`.
+- **6B:** Researcher and Executor roles are available at the `phase6` tier via a fixed Planner → Researcher → Coder → Executor → Critic DAG.
+- **6C:** `ResultComparator` scores candidates on a fixed weighted rubric from human/tool-supplied signals, flags near-ties, and requires explicit human approval to select a winner (`autoSelected: false`).
+- **6D:** `AdvancedCostController` adds projections, burn rate, and alerting with an auto-stop *recommendation* only (`autoStopped: false`); the Phase 2E hard reservation gate remains the enforcement point.
+- **6E:** `TraceReplayBuilder` reconstructs ordered parent/child timelines with replay steps from existing tracer output, adding no new telemetry channel and re-redacting sensitive attributes on output.
+- **Implementation record:** [`PHASE-6-IMPLEMENTATION.md`](PHASE-6-IMPLEMENTATION.md).
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
@@ -172,6 +183,12 @@
 
 ### PHASE 7: DEEP INTEGRATIONS
 
+**Implementation status: NOT IMPLEMENTED (deliberately blocked).**
+
+Every 7A–7E item requires new third-party host permissions, OAuth secrets at rest, outbound network egress, or local file access. None of those has an approved key-management design, permission request, or adversarial test suite yet, so shipping them would violate the project's standing security rules.
+
+What exists instead is the **prerequisite gate**: `src/integrations/egress-policy.ts` is a deny-by-default, adversarially-tested egress policy that performs **no network I/O** and grants no permission. Any future integration must pass through it. See [`PHASE-7-SECURITY-DESIGN.md`](PHASE-7-SECURITY-DESIGN.md) for the seven items still outstanding.
+
 | Subphase | Focus | Deliverables | Dependencies | Success Criteria |
 |---------|-------|--------------|--------------|------------------|
 | **7A** | GitHub Integration | PR creation, reviews, issues | 6E | Full repository workflow support |
@@ -184,30 +201,36 @@
 
 ### PHASE 8: ADVANCED INTERFACES
 
+**Implementation status: 8C and 8E complete (2026-07-27). 8A, 8B, 8D deliberately not implemented.**
+
+Dependencies are per-item, not per-phase. 8C depends on the completed 6E and 8E is a pure projection over existing state, so both shipped. 8A depends on blocked 7E file access; 8B needs microphone permission plus a speech backend (a new permission *and* a new egress path); 8D depends on 8B. See [`PHASE-8-14-IMPLEMENTATION.md`](PHASE-8-14-IMPLEMENTATION.md).
+
 | Subphase | Focus | Deliverables | Dependencies | Success Criteria |
 |---------|-------|--------------|--------------|------------------|
-| **8A** | Infinite Canvas | Spatial workspace | 7E | Drag-and-drop organization of agents and artifacts |
-| **8B** | Voice Control | Input + output | 8A | Full hands-free operation |
-| **8C** | Timeline Scrubber | Session replay | 6E | Branching history and replay |
-| **8D** | Gesture Navigation | Modern interactions | 8B | Smooth gesture-based controls |
-| **8E** | Focus Mode 3.0 | Ultra-minimal view | 8C | Maximum focus experience |
+| **8A** | Infinite Canvas | Spatial workspace | 7E | ⛔ Blocked — depends on blocked 7E file access |
+| **8B** | Voice Control | Input + output | 8A | ⛔ Blocked — needs microphone permission and a speech backend |
+| **8C** | Timeline Scrubber | Session replay | 6E | ✅ Complete — read-only replay with bookmark branching |
+| **8D** | Gesture Navigation | Modern interactions | 8B | ⛔ Blocked — depends on 8B |
+| **8E** | Focus Mode 3.0 | Ultra-minimal view | 8C | ✅ Complete — deterministic priority projection |
 
 ---
 
 ### PHASE 9–20 (Condensed Structure)
 
+**Implementation status:** Phases 11, 14, 15, 16, 17, 18 and the local half of Phase 10 are complete (2026-07-27). Everything else in this range remains not started, and several items are permanently gated behind the Phase 7 security work. See [`PHASE-10-11-IMPLEMENTATION.md`](PHASE-10-11-IMPLEMENTATION.md), [`PHASE-8-14-IMPLEMENTATION.md`](PHASE-8-14-IMPLEMENTATION.md), [`PHASE-15-17-18-IMPLEMENTATION.md`](PHASE-15-17-18-IMPLEMENTATION.md), and [`PHASE-16-IMPLEMENTATION.md`](PHASE-16-IMPLEMENTATION.md).
+
 | Phase | Name | Primary Focus |
 |-------|------|---------------|
 | **9** | Collaboration | Multi-user sessions, shared agents, presence indicators |
-| **10** | Enterprise | SSO, audit logs, policy engine, compliance reporting |
-| **11** | Safety & Ethics | Constitutional AI, risk scoring, approval workflows |
+| **10** | Enterprise | ✅ **Audit log + policy engine complete**; SSO and outbound compliance reporting blocked (need an identity provider and egress) |
+| **11** | Safety & Ethics | ✅ **Complete** — deterministic constitutional rules, risk floors, most-restrictive-wins verdicts |
 | **12** | Advanced Tooling | Web automation, data analysis, document intelligence |
 | **13** | Marketplace | Templates, personas, versioning, community features |
-| **14** | Testing Framework | Agent behavior test harness, simulation mode, golden tests |
-| **15** | Simulation | What-if scenarios, strategy comparison, risk analysis |
-| **16** | Self-Modification | Agent proposes changes to its own configuration |
-| **17** | Analytics | Full observability dashboard, cost attribution |
-| **18** | Knowledge Management | Distillation, reusable packs, long-term memory |
+| **14** | Testing Framework | ✅ **Complete** — harness drives the real lifecycle code, simulation mode, golden digests |
+| **15** | Simulation | ✅ **Complete** — what-if projection over the real lifecycle/policy/cost code; relative duration units, never wall-clock |
+| **16** | Self-Modification | ✅ **Complete (proposal only)** — inert proposals, re-validated on apply, safety model immutable and unproposable |
+| **17** | Analytics | ✅ **Complete** — per-role/task cost attribution and cross-workflow trends that refuse to infer from thin data |
+| **18** | Knowledge Management | ✅ **Complete** — distillation and portable packs that never launder the approval chain |
 | **19** | Plugin Ecosystem | Third-party tools, agents, and workflows |
 | **20** | Future Vision | Experimental high-autonomy modes, research direction |
 

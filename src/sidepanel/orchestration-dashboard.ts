@@ -1,4 +1,10 @@
 import type { AgentRole, TaskStatus } from '../orchestration/types';
+import { isRoleAllowed, tierLimits, type CapabilityTier } from '../orchestration/capability-tier';
+
+/** The panel renders any tier the worker may legitimately report. */
+const MAX_TIER: CapabilityTier = 'phase6';
+const MAX_AGENTS = tierLimits(MAX_TIER).maxConcurrentAgents;
+const MAX_HANDOFFS = tierLimits(MAX_TIER).maxHandoffs;
 import type { OrchestrationServiceSnapshot } from '../background/orchestration-service';
 
 export interface OrchestrationDashboardElements {
@@ -115,13 +121,13 @@ function isSafetySnapshot(value: unknown): value is { activeAgents: number; hand
     && typeof activeAgents === 'number'
     && typeof handoffs === 'number'
     && activeAgents >= 0
-    && activeAgents <= 3
+    && activeAgents <= MAX_AGENTS
     && handoffs >= 0
-    && handoffs <= 12;
+    && handoffs <= MAX_HANDOFFS;
 }
 
 function isRole(value: unknown): value is AgentRole {
-  return value === 'planner' || value === 'coder' || value === 'critic';
+  return isRoleAllowed(value, MAX_TIER);
 }
 
 function isStatus(value: unknown): value is TaskStatus {

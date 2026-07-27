@@ -74,8 +74,12 @@ describe('sidepanel orchestration dashboard rendering', () => {
 
   it('validates bounded orchestration responses before rendering', () => {
     expect(isOrchestrationResponse({ ok: true, orchestration: snapshot() })).toBe(true);
-    expect(isOrchestrationResponse({ ok: true, orchestration: { ...snapshot(), safety: { activeAgents: 4, handoffs: 0 } } })).toBe(false);
-    expect(isOrchestrationResponse({ ok: true, orchestration: { ...snapshot(), cards: [{ ...snapshot().cards[0], role: 'executor' }] } })).toBe(false);
+    // The panel renders up to the phase6 ceiling of 5 agents / 20 handoffs.
+    expect(isOrchestrationResponse({ ok: true, orchestration: { ...snapshot(), safety: { activeAgents: 5, handoffs: 20 } } })).toBe(true);
+    expect(isOrchestrationResponse({ ok: true, orchestration: { ...snapshot(), safety: { activeAgents: 6, handoffs: 0 } } })).toBe(false);
+    expect(isOrchestrationResponse({ ok: true, orchestration: { ...snapshot(), safety: { activeAgents: 1, handoffs: 21 } } })).toBe(false);
+    expect(isOrchestrationResponse({ ok: true, orchestration: { ...snapshot(), cards: [{ ...snapshot().cards[0], role: 'executor' }] } })).toBe(true);
+    expect(isOrchestrationResponse({ ok: true, orchestration: { ...snapshot(), cards: [{ ...snapshot().cards[0], role: 'overlord' }] } })).toBe(false);
     expect(isOrchestrationResponse({ ok: true, orchestration: { ...snapshot(), extra: '<b>ignored</b>' } })).toBe(true);
   });
 });

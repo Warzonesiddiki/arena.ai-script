@@ -30,13 +30,22 @@ This folder contains the complete planning and technical documentation for the p
 | `PHASE-4E-IMPLEMENTATION.md` | Phase 4E deterministic bounded performance analytics record | ✅ Complete |
 | `PHASE-5A-IMPLEMENTATION.md` | Phase 5A durable background orchestration control-plane state restoration record | ✅ Complete |
 | `PHASE-5B-IMPLEMENTATION.md` | Phase 5B approval-gated deterministic schedule metadata and Chrome alarms record | ✅ Complete |
+| `PHASE-5C-IMPLEMENTATION.md` | Phase 5C approval-gated internal-only triggered-agent metadata and due-run record | ✅ Complete |
+| `PHASE-5D-5E-IMPLEMENTATION.md` | Phase 5D compressed hibernation and Phase 5E deterministic recovery-snapshot record | ✅ Complete |
+| `PHASE-6-IMPLEMENTATION.md` | Phase 6A–6E capability-tier gate, routing, expanded roles, comparison, cost controls, and trace replay record | ✅ Complete |
+| `PHASE-7-SECURITY-DESIGN.md` | Phase 7 egress-policy prerequisite and the outstanding security work blocking integrations | ⛔ Integrations deliberately not implemented |
+| `PHASE-8-14-IMPLEMENTATION.md` | Phase 8C timeline scrubber, 8E focus mode, and Phase 14 agent-behavior harness record | ✅ Complete (8A/8B/8D blocked) |
+| `PHASE-10-11-IMPLEMENTATION.md` | Phase 10 tamper-evident audit log and Phase 11 risk/policy engine record | ✅ Complete (SSO/reporting blocked) |
+| `PHASE-15-17-18-IMPLEMENTATION.md` | Phase 15 simulation, Phase 17 cost attribution, and Phase 18 knowledge pack record | ✅ Complete |
+| `PHASE-16-IMPLEMENTATION.md` | Phase 16 proposal-only self-modification with an immutable safety model | ✅ Complete |
+| `INTEGRATION-WIRING.md` | Import-graph audit that found 15 unreachable modules, the wiring that fixed it, and the reachability regression guard | ✅ Complete |
 
 ## Blueprint Summary
 
 - **Total Phases**: 20
 - **Total Subphases**: 100
-- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3E — Controlled Light Multi-Agent Dashboard ✅; Phase 4A–4E — Intelligence Layer ✅; Phase 5A–5B — Persistence and Scheduling Foundation ✅
-- **Next Milestone**: Phase 5C — Triggered Agents
+- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3E — Controlled Light Multi-Agent Dashboard ✅; Phase 4A–4E — Intelligence Layer ✅; Phase 5A–5E — Persistence, Scheduling, Triggers, Hibernation, and Recovery ✅; Phase 6A–6E — Full Multi-Agent Arena Mode (up to 5 agents) ✅; Phase 8C/8E — Timeline Scrubber and Focus Mode ✅; Phase 14 — Agent Behavior Testing Framework ✅; Phase 10 audit log and Phase 11 safety policy engine ✅; Phase 15 simulation, Phase 16 self-modification proposals, Phase 17 cost attribution, and Phase 18 knowledge packs ✅
+- **Next Milestone**: Phase 7 integrations remain **blocked by design**. The egress gate and threat model are delivered; key management, per-host permission requests, rate limiting, per-action approval, audit logging, and an adversarial test suite are still required. See `PHASE-7-SECURITY-DESIGN.md`.
 - **Platform**: Chrome Browser Extension (Manifest V3)
 - **Key Focus Areas**:
   - Gradual Multi-Agent rollout (Phase 3 → Phase 6)

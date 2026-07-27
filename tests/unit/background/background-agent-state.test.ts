@@ -73,8 +73,10 @@ describe('BackgroundAgentStateStore', () => {
 
   it('rejects unsafe or out-of-policy restore state', async () => {
     const store = new BackgroundAgentStateStore({ storage: storage(), now: () => 2_100_000_000_000 });
-    await expect(store.saveSnapshot(snapshot({ safety: { activeAgents: 4, handoffs: 0 } }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
-    await expect(store.saveSnapshot(snapshot({ cards: [...snapshot().cards, { ...snapshot().cards[0]!, id: 'extra-1' }] }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
+    // 5 agents is the phase6 ceiling, so 6 is the rejection boundary.
+    await expect(store.saveSnapshot(snapshot({ safety: { activeAgents: 6, handoffs: 0 } }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
+    const overCapacity = ['e1', 'e2', 'e3'].map((id) => ({ ...snapshot().cards[0]!, id }));
+    await expect(store.saveSnapshot(snapshot({ cards: [...snapshot().cards, ...overCapacity] }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
     await expect(store.saveSnapshot(snapshot({ planId: '../bad' }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
   });
 
@@ -87,4 +89,73 @@ describe('BackgroundAgentStateStore', () => {
     const restored = await store.restore();
     expect(restored?.roles).toHaveLength(3);
   });
+  it('refuses to mark suspension when no state has been saved', async () => {
+    const store = new BackgroundAgentStateStore({ storage: storage(), now: () => 2_100_000_000_000 });
+
+    await expect(store.markSuspended('plan-1')).rejects.toBeInstanceOf(BackgroundAgentStateError);
+    await expect(store.markResumed('plan-1')).rejects.toBeInstanceOf(BackgroundAgentStateError);
+  });
+
+  it('refuses to mark suspension for a different plan than the stored one', async () => {
+    const store = new BackgroundAgentStateStore({ storage: storage(), now: () => 2_100_000_000_000 });
+    await store.saveSnapshot(snapshot());
+
+    // A stale caller must not be able to flip another plan's marker.
+    await expect(store.markSuspended('plan-other')).rejects.toBeInstanceOf(BackgroundAgentStateError);
+    await expect(store.markSuspended('../bad')).rejects.toBeInstanceOf(BackgroundAgentStateError);
+  });
+
+  it('returns null when nothing has been persisted', async () => {
+    const store = new BackgroundAgentStateStore({ storage: storage(), now: () => 2_100_000_000_000 });
+    await expect(store.restore()).resolves.toBeNull();
+  });
+
+  it('rejects a stored state with an unsupported schema or malformed roles', async () => {
+    const badSchema = storage();
+    await badSchema.putLarge('background:agent-control-state:v1', { ...structuredClone(await savedState()), schemaVersion: 99 });
+    await expect(new BackgroundAgentStateStore({ storage: badSchema }).restore()).rejects.toBeInstanceOf(BackgroundAgentStateError);
+
+    const badRoles = storage();
+    await badRoles.putLarge('background:agent-control-state:v1', { ...structuredClone(await savedState()), roles: 'nope' });
+    await expect(new BackgroundAgentStateStore({ storage: badRoles }).restore()).rejects.toBeInstanceOf(BackgroundAgentStateError);
+  });
+
+  it('rejects stored state carrying an invalid role, status, or progress', async () => {
+    const base = await savedState();
+
+    for (const mutate of [
+      (state: Record<string, unknown>) => { (state.roles as Record<string, unknown>[])[0]!.role = 'overlord'; },
+      (state: Record<string, unknown>) => { (state.roles as Record<string, unknown>[])[0]!.status = 'daydreaming'; },
+      (state: Record<string, unknown>) => { (state.roles as Record<string, unknown>[])[0]!.progress = 5; },
+      (state: Record<string, unknown>) => { (state.roles as Record<string, unknown>[])[0]!.taskId = '../bad'; },
+      (state: Record<string, unknown>) => { (state.roles as Record<string, unknown>[])[0]!.estimatedCostUsd = -1; },
+      (state: Record<string, unknown>) => { state.goal = '   '; },
+      (state: Record<string, unknown>) => { state.savedAt = -1; },
+    ]) {
+      const corrupted = structuredClone(base) as unknown as Record<string, unknown>;
+      mutate(corrupted);
+      const layer = storage();
+      await layer.putLarge('background:agent-control-state:v1', corrupted);
+      await expect(new BackgroundAgentStateStore({ storage: layer }).restore()).rejects.toBeInstanceOf(BackgroundAgentStateError);
+    }
+  });
+
+  it('accepts a Phase 6 five-role control state', async () => {
+    const store = new BackgroundAgentStateStore({ storage: storage(), now: () => 2_100_000_000_000 });
+    const roles = ['planner', 'researcher', 'coder', 'executor', 'critic'] as const;
+    const saved = await store.saveSnapshot(snapshot({
+      safety: { activeAgents: 5, handoffs: 2 },
+      cards: roles.map((role) => ({ ...snapshot().cards[0]!, id: `${role}-1`, role })),
+    }));
+
+    expect(saved?.roles.map((entry) => entry.role)).toEqual([...roles]);
+  });
 });
+
+/** A valid persisted state, used as the base for corruption cases. */
+async function savedState(): Promise<Record<string, unknown>> {
+  const layer = storage();
+  const store = new BackgroundAgentStateStore({ storage: layer, now: () => 2_100_000_000_000 });
+  await store.saveSnapshot(snapshot());
+  return (await layer.getLarge('background:agent-control-state:v1')) as Record<string, unknown>;
+}

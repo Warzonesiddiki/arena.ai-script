@@ -1,6 +1,7 @@
 import { openCommandPalette } from '../commands/command-palette-modal';
 import { TickDispatcher } from '../core/tick-dispatcher';
 import { isOrchestrationResponse, renderOrchestrationDashboard } from './orchestration-dashboard';
+import { isInsightResponse, renderInsightPanel } from './insight-panel';
 
 interface RuntimeStatusResponse {
   ok: true;
@@ -30,7 +31,9 @@ commandButton?.addEventListener('click', () => {
     { id: 'settings.open', title: 'Open settings', description: 'Configure extension preferences', category: 'Extension', keywords: ['preferences'] },
   ], (commandId) => {
     if (commandId === 'status.refresh') void refreshStatus();
-    if (commandId === 'settings.open') window.open('../options/options.html', '_blank', 'noopener');
+    // Use the dedicated options API rather than window.open: it cannot be
+    // pointed at an arbitrary URL and needs no tab-creation capability.
+    if (commandId === 'settings.open') void chrome.runtime.openOptionsPage();
   });
 });
 ticks.register('sidepanel-status', () => { void refreshStatus(); }, 1_000);
@@ -108,5 +111,21 @@ async function orchestrationRequest(message: unknown): Promise<void> {
     });
   } catch (error) {
     console.warn('[AAMP] Orchestration dashboard refresh failed.', error);
+  }
+}
+
+const insightContainer = document.getElementById('insight-panel');
+const refreshInsights = document.getElementById('refresh-insights') as HTMLButtonElement | null;
+refreshInsights?.addEventListener('click', () => { void loadInsights(); });
+ticks.register('sidepanel-insights', () => { void loadInsights(); }, 5_000);
+void loadInsights();
+
+async function loadInsights(): Promise<void> {
+  try {
+    const response: unknown = await chrome.runtime.sendMessage({ type: 'aamp:orchestration:insights' });
+    if (!isInsightResponse(response)) return;
+    renderInsightPanel(document, insightContainer, response.insights);
+  } catch (error) {
+    console.warn('[AAMP] Insight refresh failed.', error);
   }
 }

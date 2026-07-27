@@ -6,8 +6,14 @@ describe('buildModal', () => {
   });
 
   it('renders a v7-compatible modal and replaces a duplicate id', () => {
-    const first = buildModal('example', 'First title', '<p>First body</p>', { footer: '<button>Save</button>' });
-    const second = buildModal('example', '<unsafe>', '<p>Second body</p>', { width: '500px' });
+    const saveButton = document.createElement('button');
+    saveButton.textContent = 'Save';
+    const firstBody = document.createElement('p');
+    firstBody.textContent = 'First body';
+    const first = buildModal('example', 'First title', firstBody, { footer: saveButton });
+    const secondBody = document.createElement('p');
+    secondBody.textContent = 'Second body';
+    const second = buildModal('example', '<unsafe>', secondBody, { width: '500px' });
 
     expect(first.isConnected).toBe(false);
     expect(second.querySelector('.aamp-modal-body')?.textContent).toContain('Second body');
@@ -27,5 +33,26 @@ describe('buildModal', () => {
     expect(document.getElementById('fixed')).toBe(fixedModal);
     (fixedModal.querySelector('.aamp-modal-close') as HTMLButtonElement).click();
     expect(document.getElementById('fixed')).toBeNull();
+  });
+
+  it('never interprets string content as markup', () => {
+    const modal = buildModal('escaped', 'Title', '<img src=x onerror=alert(1)>', { footer: '<b>footer</b>' });
+
+    const body = modal.querySelector('.aamp-modal-body')!;
+    // The payload is text, not an element.
+    expect(body.querySelector('img')).toBeNull();
+    expect(body.textContent).toBe('<img src=x onerror=alert(1)>');
+    expect(modal.querySelector('.aamp-modal-footer')?.querySelector('b')).toBeNull();
+    expect(modal.querySelector('.aamp-modal-footer')?.textContent).toBe('<b>footer</b>');
+  });
+
+  it('accepts a list of nodes', () => {
+    const one = document.createElement('span');
+    one.textContent = 'one';
+    const two = document.createElement('span');
+    two.textContent = 'two';
+    const modal = buildModal('nodes', 'Title', [one, two]);
+
+    expect(modal.querySelectorAll('.aamp-modal-body span')).toHaveLength(2);
   });
 });
