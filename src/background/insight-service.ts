@@ -5,6 +5,10 @@ import { HibernationManager, type HibernationCandidate } from '../hibernation/hi
 import { OrchestrationHealthMonitor, type HealthSnapshot } from '../health/orchestration-health-monitor';
 import { RecoverySnapshotManager, type RecoveryPlanProposal } from '../recovery/recovery-snapshot-manager';
 import { TimelineScrubber } from '../timeline/timeline-scrubber';
+import { StrategySimulator, type SimulationStrategy, type StrategyComparison } from '../simulation/strategy-simulator';
+import { KnowledgePackBuilder, type KnowledgePack } from '../knowledge/knowledge-pack';
+import type { AgentMemoryNode } from '../memory/agent-memory-graph';
+import type { AgentPlan } from '../orchestration/types';
 import type { OrchestrationServiceSnapshot } from './orchestration-service';
 import type { Tracer } from '../observability/tracer';
 
@@ -50,6 +54,8 @@ export interface InsightServiceOptions {
   costController?: AdvancedCostController;
   recovery?: RecoverySnapshotManager;
   hibernation?: HibernationManager;
+  simulator?: StrategySimulator;
+  knowledge?: KnowledgePackBuilder;
   workflowBudgetUsd?: number;
   now?: () => number;
 }
@@ -62,6 +68,8 @@ export class InsightService {
   private readonly costController: AdvancedCostController;
   private readonly recovery: RecoverySnapshotManager;
   private readonly hibernation: HibernationManager;
+  private readonly simulator: StrategySimulator;
+  private readonly knowledge: KnowledgePackBuilder;
   private readonly workflowBudgetUsd: number;
   private readonly now: () => number;
 
@@ -73,6 +81,8 @@ export class InsightService {
     this.costController = options.costController ?? new AdvancedCostController();
     this.recovery = options.recovery ?? new RecoverySnapshotManager();
     this.hibernation = options.hibernation ?? new HibernationManager();
+    this.simulator = options.simulator ?? new StrategySimulator();
+    this.knowledge = options.knowledge ?? new KnowledgePackBuilder();
     this.workflowBudgetUsd = options.workflowBudgetUsd ?? 0.5;
     this.now = options.now ?? Date.now;
   }
@@ -129,6 +139,19 @@ export class InsightService {
   /** Evaluates hibernation candidacy for durable control states. */
   public hibernationCandidates(states: Parameters<HibernationManager['evaluate']>[0]): readonly HibernationCandidate[] {
     return this.hibernation.evaluate(states, this.now());
+  }
+
+  /**
+   * Phase 15: compares what-if strategies for a plan. Purely projective — it
+   * approves nothing and enacts nothing.
+   */
+  public simulateStrategies(plan: AgentPlan, strategies: readonly SimulationStrategy[]): StrategyComparison {
+    return this.simulator.compare(plan, strategies, this.workflowBudgetUsd, this.now());
+  }
+
+  /** Phase 18: distills approved memory into a reusable pack. */
+  public distillKnowledge(nodes: readonly AgentMemoryNode[], id: string, name: string): KnowledgePack {
+    return this.knowledge.distill(nodes, { id, name, createdAt: this.now() });
   }
 
   public analyticsReport(orchestration: OrchestrationServiceSnapshot): ReturnType<PerformanceAnalyticsEngine['build']> {

@@ -116,6 +116,8 @@ describe('module reachability', () => {
       'observability/trace-replay.ts',
       'timeline/timeline-scrubber.ts',
       'analytics/performance-analytics.ts',
+      'simulation/strategy-simulator.ts',
+      'knowledge/knowledge-pack.ts',
     ]) {
       expect({ critical, reachable: reachableRelative.has(critical) }).toEqual({ critical, reachable: true });
     }
