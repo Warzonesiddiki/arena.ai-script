@@ -154,14 +154,17 @@ export class DeterministicAgentRouter {
 }
 
 function blockedReason(task: RoutableTask, statuses: ReadonlyMap<string, TaskStatus>): { reason: RouteBlockedReason; detail: string } | null {
+  // Cost blocking is checked before the generic status check. A cost-blocked
+  // task carries status 'blocked', so testing status first would report the
+  // uninformative 'terminal-status' and hide the actionable cause.
+  if (task.costBlocked === true && task.status !== 'completed' && task.status !== 'failed') {
+    return { reason: 'cost-blocked', detail: `Task "${task.id}" is blocked by a cost reservation.` };
+  }
   if (task.status === 'completed' || task.status === 'failed' || task.status === 'blocked') {
     return { reason: 'terminal-status', detail: `Task "${task.id}" is ${task.status}.` };
   }
   if (task.status === 'running') {
     return { reason: 'terminal-status', detail: `Task "${task.id}" is already running.` };
-  }
-  if (task.costBlocked === true) {
-    return { reason: 'cost-blocked', detail: `Task "${task.id}" is blocked by a cost reservation.` };
   }
   if (!task.approved) {
     return { reason: 'not-approved', detail: `Task "${task.id}" requires explicit human approval before dispatch.` };

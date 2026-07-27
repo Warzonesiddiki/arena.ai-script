@@ -119,6 +119,30 @@ describe('DeterministicAgentRouter', () => {
     });
   });
 
+  it('reports the cost cause rather than the generic status for a cost-blocked task', () => {
+    const router = new DeterministicAgentRouter({ tier: 'phase6' });
+    // A cost-blocked task also carries status 'blocked'. The specific,
+    // actionable reason must win over the generic terminal-status message.
+    const decision = router.route({
+      tasks: [task({ id: 'costly-1', role: 'coder', status: 'blocked', costBlocked: true })],
+    });
+
+    expect(decision.deferred[0]?.reason).toBe('cost-blocked');
+    expect(decision.deferred[0]?.detail).toContain('cost reservation');
+  });
+
+  it('still reports terminal status for a completed or failed task even if cost-blocked', () => {
+    const router = new DeterministicAgentRouter({ tier: 'phase6' });
+    const decision = router.route({
+      tasks: [
+        task({ id: 'done-1', role: 'coder', status: 'completed', costBlocked: true }),
+        task({ id: 'failed-1', role: 'coder', status: 'failed', costBlocked: true }),
+      ],
+    });
+
+    expect(decision.deferred.map((entry) => entry.reason)).toEqual(['terminal-status', 'terminal-status']);
+  });
+
   it('rejects phase6 roles at the phase3 tier', () => {
     const phase3 = new DeterministicAgentRouter({ tier: 'phase3' });
     expect(() => phase3.route({ tasks: [task({ id: 'r-1', role: 'researcher' })] })).toThrow(AgentRoutingError);
