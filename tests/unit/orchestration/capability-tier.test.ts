@@ -92,4 +92,21 @@ describe('OrchestrationSafetyGuard tier enforcement', () => {
     guard.approve('task-1');
     expect(() => guard.requireApproval('task-1')).not.toThrow();
   });
+  it('assertRoleAllowed returns the role and names the tier when refusing', () => {
+    expect(assertRoleAllowed('planner')).toBe('planner');
+    expect(assertRoleAllowed('researcher', 'phase6')).toBe('researcher');
+
+    // The error must say which tier refused, so the fix is obvious.
+    expect(() => assertRoleAllowed('researcher', 'phase3')).toThrow(/phase3/u);
+    expect(() => assertRoleAllowed(null)).toThrow(CapabilityTierError);
+    expect(() => assertRoleAllowed(undefined)).toThrow(CapabilityTierError);
+    expect(() => assertRoleAllowed({ role: 'coder' })).toThrow(CapabilityTierError);
+  });
+
+  it('isRoleAllowed rejects non-string candidates without throwing', () => {
+    expect(isRoleAllowed(undefined)).toBe(false);
+    expect(isRoleAllowed(null)).toBe(false);
+    expect(isRoleAllowed(7)).toBe(false);
+    expect(isRoleAllowed(['coder'])).toBe(false);
+  });
 });
