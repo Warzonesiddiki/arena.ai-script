@@ -8,7 +8,7 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 
 ## Current implementation status
 
-**Phases 0 through 6 are complete**, along with Phase 8C, 8E, 10 (local half), 11, 14, 15, 17, and 18. Phase 7 integrations are deliberately **not** implemented — see [Security posture](#security-posture) below.
+**Phases 0 through 6 are complete**, along with Phase 8C, 8E, 10 (local half), 11, 14, 15, 16, 17, and 18. Phase 7 integrations are deliberately **not** implemented — see [Security posture](#security-posture) below.
 
 Work is sequenced by real dependency rather than by phase number, and anything that would need an unjustified permission is left explicitly blocked rather than stubbed.
 
@@ -28,9 +28,10 @@ Work is sequenced by real dependency rather than by phase number, and anything t
 | **10 (partial)** | Tamper-evident audit log and policy engine (SSO/reporting blocked) | ✅ Complete |
 | **11** | Safety & ethics — constitutional rules, risk scoring, approval workflows | ✅ Complete |
 | **15** | What-if simulation and strategy comparison | ✅ Complete |
+| **16** | Self-modification — proposal only, safety model immutable | ✅ Complete |
 | **17** | Cost attribution and cross-workflow trends | ✅ Complete |
 | **18** | Knowledge distillation and reusable packs | ✅ Complete |
-| **9, 12, 13, 16, 19, 20** | Collaboration, advanced tooling, marketplace, self-modification, and beyond | ⬜ Not started |
+| **9, 12, 13, 19, 20** | Collaboration, advanced tooling, marketplace, plugin ecosystem, future vision | ⬜ Not started |
 
 ### Invariants that hold across every completed phase
 
@@ -57,6 +58,7 @@ The implementation sequence and technical guardrails are documented in:
 - [Phase 8C/8E and Phase 14 Record](docs/PHASE-8-14-IMPLEMENTATION.md)
 - [Phase 10/11 Audit and Safety Record](docs/PHASE-10-11-IMPLEMENTATION.md)
 - [Phase 15/17/18 Simulation, Attribution, and Knowledge Record](docs/PHASE-15-17-18-IMPLEMENTATION.md)
+- [Phase 16 Self-Modification Record](docs/PHASE-16-IMPLEMENTATION.md)
 - [Integration Wiring and Reachability](docs/INTEGRATION-WIRING.md)
 
 Earlier phase records (0A–4E) are listed in the [Documentation Index](docs/BLUEPRINT-INDEX.md).
@@ -127,6 +129,7 @@ src/
   bridge/               Signed Content Bridge protocol, session manager, safe DOM ops
   commands/             Command palette index and modal
   comparison/           Phase 6C result comparison and scoring
+  configuration/        Proposal-only self-modification
   core/                 ModuleRegistry, EventBus v2, TickDispatcher, buildModal
   debugging/            Causal trace debugger
   governance/           Cost reservations and Phase 6D advanced controls

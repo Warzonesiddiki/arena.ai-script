@@ -61,7 +61,7 @@ describe('documentation integrity', () => {
 
     // Every phase the README calls complete must also be marked complete in the
     // blueprint, so the two cannot disagree about what ships.
-    for (const phase of ['15', '17', '18']) {
+    for (const phase of ['15', '16', '17', '18']) {
       const blueprintRow = blueprint.split('\n').find((line) => line.startsWith(`| **${phase}** |`));
       expect({ phase, row: blueprintRow?.includes('Complete') ?? false }).toEqual({ phase, row: true });
     }
@@ -78,6 +78,7 @@ describe('documentation integrity', () => {
       'PHASE-8-14-IMPLEMENTATION.md',
       'PHASE-10-11-IMPLEMENTATION.md',
       'PHASE-15-17-18-IMPLEMENTATION.md',
+      'PHASE-16-IMPLEMENTATION.md',
     ]) {
       expect({ record, listed: index.includes(record) }).toEqual({ record, listed: true });
       expect({ record, exists: fs.existsSync(path.join(DOCS, record)) }).toEqual({ record, exists: true });

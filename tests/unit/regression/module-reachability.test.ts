@@ -119,6 +119,7 @@ describe('module reachability', () => {
       'simulation/strategy-simulator.ts',
       'knowledge/knowledge-pack.ts',
       'analytics/cost-attribution.ts',
+      'configuration/config-proposal.ts',
     ]) {
       expect({ critical, reachable: reachableRelative.has(critical) }).toEqual({ critical, reachable: true });
     }

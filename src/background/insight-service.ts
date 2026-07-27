@@ -1,5 +1,6 @@
 import { PerformanceAnalyticsEngine } from '../analytics/performance-analytics';
 import { CostAttributionEngine, type CostAttributionReport, type WorkflowCostRecord } from '../analytics/cost-attribution';
+import { ConfigProposalEngine, type ConfigProposal, type ExtensionConfig } from '../configuration/config-proposal';
 import { AdvancedCostController } from '../governance/advanced-cost-controls';
 import { FocusModeEngine, type FocusLevel, type FocusView } from '../focus/focus-mode';
 import { HibernationManager, type HibernationCandidate } from '../hibernation/hibernation-manager';
@@ -58,6 +59,7 @@ export interface InsightServiceOptions {
   simulator?: StrategySimulator;
   knowledge?: KnowledgePackBuilder;
   attribution?: CostAttributionEngine;
+  configProposals?: ConfigProposalEngine;
   workflowBudgetUsd?: number;
   now?: () => number;
 }
@@ -73,6 +75,7 @@ export class InsightService {
   private readonly simulator: StrategySimulator;
   private readonly knowledge: KnowledgePackBuilder;
   private readonly attribution: CostAttributionEngine;
+  private readonly configProposals: ConfigProposalEngine;
   private readonly workflowBudgetUsd: number;
   private readonly now: () => number;
 
@@ -87,6 +90,7 @@ export class InsightService {
     this.simulator = options.simulator ?? new StrategySimulator();
     this.knowledge = options.knowledge ?? new KnowledgePackBuilder();
     this.attribution = options.attribution ?? new CostAttributionEngine();
+    this.configProposals = options.configProposals ?? new ConfigProposalEngine();
     this.workflowBudgetUsd = options.workflowBudgetUsd ?? 0.5;
     this.now = options.now ?? Date.now;
   }
@@ -164,6 +168,25 @@ export class InsightService {
    */
   public costAttribution(records: readonly WorkflowCostRecord[]): CostAttributionReport {
     return this.attribution.build(records, this.now());
+  }
+
+  /**
+   * Phase 16: proposes configuration changes from observed operating data.
+   * Proposals are inert; applying one requires explicit human approval and the
+   * safety model itself can never be proposed.
+   */
+  public proposeConfigChanges(
+    config: ExtensionConfig,
+    orchestration: OrchestrationServiceSnapshot,
+    attributionReport: CostAttributionReport | null = null,
+  ): readonly ConfigProposal[] {
+    const now = this.now();
+    return this.configProposals.propose({
+      config,
+      health: this.health.evaluate({ orchestration, traceEvents: this.tracer.getEvents(), now }),
+      attribution: attributionReport,
+      now,
+    });
   }
 
   public analyticsReport(orchestration: OrchestrationServiceSnapshot): ReturnType<PerformanceAnalyticsEngine['build']> {

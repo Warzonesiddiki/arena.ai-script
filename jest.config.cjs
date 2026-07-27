@@ -34,6 +34,7 @@ module.exports = {
     'src/triggers/**/*.ts',
     'src/commands/**/*.ts',
     'src/comparison/**/*.ts',
+    'src/configuration/**/*.ts',
     'src/knowledge/**/*.ts',
     'src/memory/**/*.ts',
     'src/orchestration/**/*.ts',
