@@ -1,4 +1,4 @@
-# Phase 15 and 18 Implementation — Simulation and Knowledge Packs
+# Phase 15, 17, and 18 Implementation — Simulation, Cost Attribution, and Knowledge Packs
 
 **Status:** Complete
 
@@ -6,7 +6,7 @@
 
 **Blueprint reference:** [Phase 9–20](20-PHASE-BLUEPRINT.md#phase-920-condensed-structure)
 
-Both build on completed phases, add **no browser permission**, and perform no network or file access.
+All three build on completed phases, add **no browser permission**, and perform no network or file access.
 
 ---
 
@@ -49,6 +49,34 @@ A **policy denial makes a task structurally unreachable**, and its dependents un
 
 ---
 
+## Phase 17 — Cost Attribution and Cross-Workflow Trends
+
+`src/analytics/cost-attribution.ts` extends Phase 4E, which reports analytics for *one* workflow, by attributing spend to role and task across *many*. It answers: **where is the money going, and is it getting better or worse?**
+
+### What it reports
+
+| Output | Meaning |
+|---|---|
+| `roles` | Per-role total, share, task count, average, and **wasted** spend |
+| `workflows` | Per-workflow total, budget ratio, over-budget flag, dominant role |
+| `costliestTasks` | Most expensive tasks across every supplied workflow |
+| `trend` | Newer half vs older half of the window |
+| `recommendations` | Deterministic, threshold-driven guidance |
+
+**"Waste" has a precise meaning here:** spend on tasks that ended `failed` or `blocked` — money with nothing to show for it. That is usually the most actionable number in the report.
+
+### It refuses to invent a signal
+
+With fewer than four workflows, a half-versus-half comparison is meaningless, so the trend reports `insufficient-data` with an explanation rather than producing a confident-looking number from two data points. A zero-spend earlier window returns a `null` ratio instead of dividing by zero.
+
+Attribution is arithmetic, not inference: no model is consulted, and shares are asserted by test to sum to 1.
+
+### Boundaries
+
+Pure aggregation over records the caller already holds. It **adds no new telemetry channel**, persists nothing, and never touches the network. Bounded to the 100 most recent workflows with an explicit `truncated` flag.
+
+---
+
 ## Phase 18 — Knowledge Distillation and Reusable Packs
 
 `src/knowledge/knowledge-pack.ts` distills approved memory into a portable pack and imports packs back as candidates.
@@ -83,7 +111,7 @@ That is exactly the class of mistake the guard was written for.
 
 ## Safety boundaries
 
-Neither module:
+None of these modules:
 
 - executes, approves, schedules, or persists anything,
 - invokes a model or touches the network or file system,
@@ -98,7 +126,7 @@ Both are wired into `InsightService` so they are reachable runtime code, not she
 npm run ci
 ```
 
-- 52 suites / 310 tests passing
+- 53 suites / 322 tests passing
 - 0 runtime vulnerabilities
-- 93.6% statements / 87.72% branches
-- simulation 96.89%, knowledge 96.29% statements
+- 93.69% statements / 87.77% branches
+- simulation 96.89%, knowledge 96.29%, cost-attribution 97.47% statements

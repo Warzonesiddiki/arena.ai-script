@@ -1,4 +1,5 @@
 import { PerformanceAnalyticsEngine } from '../analytics/performance-analytics';
+import { CostAttributionEngine, type CostAttributionReport, type WorkflowCostRecord } from '../analytics/cost-attribution';
 import { AdvancedCostController } from '../governance/advanced-cost-controls';
 import { FocusModeEngine, type FocusLevel, type FocusView } from '../focus/focus-mode';
 import { HibernationManager, type HibernationCandidate } from '../hibernation/hibernation-manager';
@@ -56,6 +57,7 @@ export interface InsightServiceOptions {
   hibernation?: HibernationManager;
   simulator?: StrategySimulator;
   knowledge?: KnowledgePackBuilder;
+  attribution?: CostAttributionEngine;
   workflowBudgetUsd?: number;
   now?: () => number;
 }
@@ -70,6 +72,7 @@ export class InsightService {
   private readonly hibernation: HibernationManager;
   private readonly simulator: StrategySimulator;
   private readonly knowledge: KnowledgePackBuilder;
+  private readonly attribution: CostAttributionEngine;
   private readonly workflowBudgetUsd: number;
   private readonly now: () => number;
 
@@ -83,6 +86,7 @@ export class InsightService {
     this.hibernation = options.hibernation ?? new HibernationManager();
     this.simulator = options.simulator ?? new StrategySimulator();
     this.knowledge = options.knowledge ?? new KnowledgePackBuilder();
+    this.attribution = options.attribution ?? new CostAttributionEngine();
     this.workflowBudgetUsd = options.workflowBudgetUsd ?? 0.5;
     this.now = options.now ?? Date.now;
   }
@@ -152,6 +156,14 @@ export class InsightService {
   /** Phase 18: distills approved memory into a reusable pack. */
   public distillKnowledge(nodes: readonly AgentMemoryNode[], id: string, name: string): KnowledgePack {
     return this.knowledge.distill(nodes, { id, name, createdAt: this.now() });
+  }
+
+  /**
+   * Phase 17: attributes spend across completed workflows. Pure aggregation
+   * over records the caller already holds; collects no new telemetry.
+   */
+  public costAttribution(records: readonly WorkflowCostRecord[]): CostAttributionReport {
+    return this.attribution.build(records, this.now());
   }
 
   public analyticsReport(orchestration: OrchestrationServiceSnapshot): ReturnType<PerformanceAnalyticsEngine['build']> {

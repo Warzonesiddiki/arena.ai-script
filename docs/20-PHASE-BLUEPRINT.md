@@ -217,7 +217,7 @@ Dependencies are per-item, not per-phase. 8C depends on the completed 6E and 8E 
 
 ### PHASE 9–20 (Condensed Structure)
 
-**Implementation status:** Phases 11, 14, 15, 18 and the local half of Phase 10 are complete (2026-07-27). Everything else in this range remains not started, and several items are permanently gated behind the Phase 7 security work. See [`PHASE-10-11-IMPLEMENTATION.md`](PHASE-10-11-IMPLEMENTATION.md), [`PHASE-8-14-IMPLEMENTATION.md`](PHASE-8-14-IMPLEMENTATION.md), and [`PHASE-15-18-IMPLEMENTATION.md`](PHASE-15-18-IMPLEMENTATION.md).
+**Implementation status:** Phases 11, 14, 15, 17, 18 and the local half of Phase 10 are complete (2026-07-27). Everything else in this range remains not started, and several items are permanently gated behind the Phase 7 security work. See [`PHASE-10-11-IMPLEMENTATION.md`](PHASE-10-11-IMPLEMENTATION.md), [`PHASE-8-14-IMPLEMENTATION.md`](PHASE-8-14-IMPLEMENTATION.md), and [`PHASE-15-17-18-IMPLEMENTATION.md`](PHASE-15-17-18-IMPLEMENTATION.md).
 
 | Phase | Name | Primary Focus |
 |-------|------|---------------|
@@ -229,7 +229,7 @@ Dependencies are per-item, not per-phase. 8C depends on the completed 6E and 8E 
 | **14** | Testing Framework | ✅ **Complete** — harness drives the real lifecycle code, simulation mode, golden digests |
 | **15** | Simulation | ✅ **Complete** — what-if projection over the real lifecycle/policy/cost code; relative duration units, never wall-clock |
 | **16** | Self-Modification | Agent proposes changes to its own configuration |
-| **17** | Analytics | Full observability dashboard, cost attribution |
+| **17** | Analytics | ✅ **Complete** — per-role/task cost attribution and cross-workflow trends that refuse to infer from thin data |
 | **18** | Knowledge Management | ✅ **Complete** — distillation and portable packs that never launder the approval chain |
 | **19** | Plugin Ecosystem | Third-party tools, agents, and workflows |
 | **20** | Future Vision | Experimental high-autonomy modes, research direction |
