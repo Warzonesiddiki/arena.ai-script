@@ -76,6 +76,103 @@ describe('ScheduledAgentManager', () => {
     expect((await weekly.snapshot()).schedules[0]?.nextRunAt).toBe(Date.UTC(2026, 0, 2, 9, 0));
   });
 
+  it('disables and re-enables an approved schedule, clearing and restoring its alarm', async () => {
+    let current = 1_000;
+    const alarmApi = alarms();
+    const manager = new ScheduledAgentManager({ storage: storage(), alarms: alarmApi, now: () => current, idFactory: () => 'schedule-toggle' });
+    await manager.create({ planId: 'plan-1', goal: 'Toggle me', cadence: { type: 'interval', startAt: 2_000, intervalMinutes: 5 }, approvedByHuman: true });
+
+    const disabled = await manager.setEnabled('schedule-toggle', false, true);
+    expect(disabled).toEqual(expect.objectContaining({ enabled: false, nextRunAt: null }));
+    // A disabled schedule must not leave a live alarm behind.
+    expect(alarmApi.clear).toHaveBeenCalledWith(alarmName('schedule-toggle'));
+    const createCallsWhileDisabled = alarmApi.create.mock.calls.length;
+
+    current = 3_000;
+    const reEnabled = await manager.setEnabled('schedule-toggle', true, true);
+    expect(reEnabled.enabled).toBe(true);
+    expect(reEnabled.nextRunAt).not.toBeNull();
+    expect(alarmApi.create.mock.calls.length).toBeGreaterThan(createCallsWhileDisabled);
+  });
+
+  it('removes a schedule together with its pending due runs', async () => {
+    let current = 1_000;
+    const alarmApi = alarms();
+    const manager = new ScheduledAgentManager({ storage: storage(), alarms: alarmApi, now: () => current, idFactory: () => 'schedule-remove' });
+    await manager.create({ planId: 'plan-1', goal: 'Removable', cadence: { type: 'once', runAt: 2_000 }, approvedByHuman: true });
+
+    current = 2_000;
+    await manager.handleAlarm(alarmName('schedule-remove'));
+    expect((await manager.snapshot()).dueRuns).toHaveLength(1);
+
+    await expect(manager.remove('schedule-remove', true)).resolves.toBe(true);
+    const snapshot = await manager.snapshot();
+    expect(snapshot.schedules).toHaveLength(0);
+    // Orphaned due runs must not survive their schedule.
+    expect(snapshot.dueRuns).toHaveLength(0);
+    expect(alarmApi.clear).toHaveBeenCalledWith(alarmName('schedule-remove'));
+
+    // Removing again is a no-op rather than an error.
+    await expect(manager.remove('schedule-remove', true)).resolves.toBe(false);
+  });
+
+  it('reports an unknown schedule instead of silently succeeding', async () => {
+    const manager = new ScheduledAgentManager({ storage: storage(), alarms: alarms(), now: () => 1_000 });
+    await expect(manager.setEnabled('schedule-ghost', true, true)).rejects.toBeInstanceOf(SchedulePolicyError);
+  });
+
+  it('rejects a stored schedule book with an unsupported schema or over-limit contents', async () => {
+    const unsupported = storage(new IDBFactory(), new MemoryChromeStorage(), 'schedule-bad-schema');
+    await unsupported.putLarge('scheduling:agent-schedules:v1', { schemaVersion: 99, schedules: [], dueRuns: [] });
+    await expect(new ScheduledAgentManager({ storage: unsupported, alarms: alarms() }).snapshot())
+      .rejects.toBeInstanceOf(SchedulePolicyError);
+
+    const malformed = storage(new IDBFactory(), new MemoryChromeStorage(), 'schedule-malformed');
+    await malformed.putLarge('scheduling:agent-schedules:v1', { schemaVersion: 1, schedules: 'nope', dueRuns: [] });
+    await expect(new ScheduledAgentManager({ storage: malformed, alarms: alarms() }).snapshot())
+      .rejects.toBeInstanceOf(SchedulePolicyError);
+
+    const overLimit = storage(new IDBFactory(), new MemoryChromeStorage(), 'schedule-over-limit');
+    await overLimit.putLarge('scheduling:agent-schedules:v1', {
+      schemaVersion: 1,
+      schedules: Array.from({ length: 51 }, (_unused, index) => ({
+        id: `s-${index}`, planId: 'plan-1', goal: 'g', cadence: { type: 'once', runAt: 2_000 },
+        enabled: false, createdAt: 1, updatedAt: 1, nextRunAt: null, lastFiredAt: null, runCount: 0, approvalRequired: true,
+      })),
+      dueRuns: [],
+    });
+    await expect(new ScheduledAgentManager({ storage: overLimit, alarms: alarms() }).snapshot())
+      .rejects.toBeInstanceOf(SchedulePolicyError);
+  });
+
+  it('enforces the maximum schedule count', async () => {
+    let index = 0;
+    const manager = new ScheduledAgentManager({ storage: storage(), alarms: alarms(), now: () => 1_000, idFactory: () => `schedule-${index++}` });
+    for (let created = 0; created < 50; created += 1) {
+      await manager.create({ planId: 'plan-1', goal: `Schedule ${created}`, cadence: { type: 'once', runAt: 2_000 }, approvedByHuman: true });
+    }
+    await expect(manager.create({ planId: 'plan-1', goal: 'Overflow', cadence: { type: 'once', runAt: 2_000 }, approvedByHuman: true }))
+      .rejects.toBeInstanceOf(SchedulePolicyError);
+    expect((await manager.snapshot()).schedules).toHaveLength(50);
+  });
+
+  it('rejects a duplicate schedule identifier', async () => {
+    const manager = new ScheduledAgentManager({ storage: storage(), alarms: alarms(), now: () => 1_000, idFactory: () => 'schedule-1' });
+    await manager.create({ planId: 'plan-1', goal: 'First', cadence: { type: 'once', runAt: 2_000 }, approvedByHuman: true });
+    await expect(manager.create({ planId: 'plan-1', goal: 'Duplicate', cadence: { type: 'once', runAt: 2_000 }, approvedByHuman: true, id: 'schedule-1' }))
+      .rejects.toBeInstanceOf(SchedulePolicyError);
+  });
+
+  it('ignores an alarm for a disabled schedule without creating a due run', async () => {
+    let current = 1_000;
+    const manager = new ScheduledAgentManager({ storage: storage(), alarms: alarms(), now: () => current, idFactory: () => 'schedule-off' });
+    await manager.create({ planId: 'plan-1', goal: 'Off', cadence: { type: 'once', runAt: 2_000 }, approvedByHuman: true, enabled: false });
+
+    current = 2_000;
+    await expect(manager.handleAlarm(alarmName('schedule-off'))).resolves.toBeNull();
+    expect((await manager.snapshot()).dueRuns).toHaveLength(0);
+  });
+
   it('validates cadence, identifiers, and schedule limits', async () => {
     const manager = new ScheduledAgentManager({ storage: storage(), alarms: alarms(), now: () => 1_000, idFactory: () => 'schedule-1' });
 
