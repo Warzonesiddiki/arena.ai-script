@@ -201,13 +201,17 @@ What exists instead is the **prerequisite gate**: `src/integrations/egress-polic
 
 ### PHASE 8: ADVANCED INTERFACES
 
+**Implementation status: 8C and 8E complete (2026-07-27). 8A, 8B, 8D deliberately not implemented.**
+
+Dependencies are per-item, not per-phase. 8C depends on the completed 6E and 8E is a pure projection over existing state, so both shipped. 8A depends on blocked 7E file access; 8B needs microphone permission plus a speech backend (a new permission *and* a new egress path); 8D depends on 8B. See [`PHASE-8-14-IMPLEMENTATION.md`](PHASE-8-14-IMPLEMENTATION.md).
+
 | Subphase | Focus | Deliverables | Dependencies | Success Criteria |
 |---------|-------|--------------|--------------|------------------|
-| **8A** | Infinite Canvas | Spatial workspace | 7E | Drag-and-drop organization of agents and artifacts |
-| **8B** | Voice Control | Input + output | 8A | Full hands-free operation |
-| **8C** | Timeline Scrubber | Session replay | 6E | Branching history and replay |
-| **8D** | Gesture Navigation | Modern interactions | 8B | Smooth gesture-based controls |
-| **8E** | Focus Mode 3.0 | Ultra-minimal view | 8C | Maximum focus experience |
+| **8A** | Infinite Canvas | Spatial workspace | 7E | ⛔ Blocked — depends on blocked 7E file access |
+| **8B** | Voice Control | Input + output | 8A | ⛔ Blocked — needs microphone permission and a speech backend |
+| **8C** | Timeline Scrubber | Session replay | 6E | ✅ Complete — read-only replay with bookmark branching |
+| **8D** | Gesture Navigation | Modern interactions | 8B | ⛔ Blocked — depends on 8B |
+| **8E** | Focus Mode 3.0 | Ultra-minimal view | 8C | ✅ Complete — deterministic priority projection |
 
 ---
 
@@ -220,7 +224,7 @@ What exists instead is the **prerequisite gate**: `src/integrations/egress-polic
 | **11** | Safety & Ethics | Constitutional AI, risk scoring, approval workflows |
 | **12** | Advanced Tooling | Web automation, data analysis, document intelligence |
 | **13** | Marketplace | Templates, personas, versioning, community features |
-| **14** | Testing Framework | Agent behavior test harness, simulation mode, golden tests |
+| **14** | Testing Framework | ✅ **Complete** — harness drives the real lifecycle code, simulation mode, golden digests |
 | **15** | Simulation | What-if scenarios, strategy comparison, risk analysis |
 | **16** | Self-Modification | Agent proposes changes to its own configuration |
 | **17** | Analytics | Full observability dashboard, cost attribution |

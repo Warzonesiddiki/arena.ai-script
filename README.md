@@ -8,7 +8,9 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 
 ## Current implementation status
 
-**Phases 0 through 6 are complete.** Phase 7 integrations are deliberately **not** implemented — see [Security posture](#security-posture) below.
+**Phases 0 through 6 are complete**, along with Phase 8C, 8E, and Phase 14. Phase 7 integrations are deliberately **not** implemented — see [Security posture](#security-posture) below.
+
+Work is sequenced by real dependency rather than by phase number, and anything that would need an unjustified permission is left explicitly blocked rather than stubbed.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -20,7 +22,10 @@ Arena Agent Mode Pro is moving from a Tampermonkey userscript to a Chrome extens
 | **5A–5E** | Background state, schedules, internal triggers, hibernation, recovery snapshots | ✅ Complete |
 | **6A–6E** | Capability tiers (up to 5 agents), routing, expanded roles, comparison, advanced cost controls, trace replay | ✅ Complete |
 | **7A–7E** | GitHub / Linear / VS Code / Slack / file system | ⛔ **Blocked by design** — egress gate and threat model delivered, integrations withheld |
-| **8–20** | Advanced interfaces, collaboration, enterprise, marketplace, and beyond | ⬜ Not started |
+| **8C, 8E** | Timeline scrubber (session replay) and Focus Mode 3.0 | ✅ Complete |
+| **8A, 8B, 8D** | Infinite canvas, voice control, gestures | ⛔ Blocked — need 7E file access or microphone permission |
+| **14** | Agent behavior testing framework, simulation mode, golden tests | ✅ Complete |
+| **9–13, 15–20** | Collaboration, enterprise, safety/ethics, marketplace, and beyond | ⬜ Not started |
 
 ### Invariants that hold across every completed phase
 
@@ -108,6 +113,9 @@ src/
   reflection/           Post-task reflection reports
   reliability/          Error recovery manager
   scheduling/           Approval-gated schedules
+  testing/              Agent behavior harness and simulation mode
+  timeline/             Session replay scrubber with bookmark branching
+  focus/                Focus Mode 3.0 priority projection
   triggers/             Approval-gated internal triggers
   sidepanel/ popup/ options/ content/ shared/   Extension surfaces
 scripts/                Build cleanup and asset-copy steps
