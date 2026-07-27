@@ -42,12 +42,15 @@ module.exports = {
   ],
   coverageDirectory: '<rootDir>/coverage',
   coverageReporters: ['text', 'lcov'],
+  // Ratchet: set a few points below the current measured coverage so a genuine
+  // regression fails the build, without making unrelated refactors brittle.
+  // Current: 94.9% statements / 88.67% branches / 95.98% functions / 97.85% lines.
   coverageThreshold: {
     global: {
-      branches: 80,
-      functions: 80,
-      lines: 80,
-      statements: 80,
+      branches: 86,
+      functions: 93,
+      lines: 95,
+      statements: 92,
     },
   },
   clearMocks: true,
