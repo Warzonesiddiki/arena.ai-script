@@ -1,10 +1,13 @@
 import type { OrchestrationServiceSnapshot } from './orchestration-service';
 import type { AgentRole, TaskStatus } from '../orchestration/types';
+import { isRoleAllowed, tierLimits, type CapabilityTier } from '../orchestration/capability-tier';
 import { StorageLayer } from '../storage/storage-layer';
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_STORAGE_KEY = 'background:agent-control-state:v1';
-const MAX_PHASE3_AGENTS = 3;
+/** Persistence accepts up to the highest supported tier; the orchestrator still enforces the active tier. */
+const MAX_TIER: CapabilityTier = 'phase6';
+const MAX_AGENTS = tierLimits(MAX_TIER).maxConcurrentAgents;
 const MAX_GOAL_CHARS = 4_000;
 const MAX_TITLE_CHARS = 200;
 const MAX_BLOCKER_CHARS = 300;
@@ -110,8 +113,8 @@ function stateFromSnapshot(snapshot: OrchestrationServiceSnapshot, savedAt: numb
   if (!Number.isSafeInteger(savedAt) || savedAt <= 0) throw new BackgroundAgentStateError('savedAt must be a positive safe-integer timestamp.');
   if (!snapshot.planId) throw new BackgroundAgentStateError('Active orchestration snapshots require a planId.');
   validateIdentifier(snapshot.planId, 'planId');
-  if (snapshot.cards.length > MAX_PHASE3_AGENTS) throw new BackgroundAgentStateError(`Phase 5A restore supports at most ${MAX_PHASE3_AGENTS} Phase 3 role states.`);
-  if (snapshot.safety.activeAgents > MAX_PHASE3_AGENTS) throw new BackgroundAgentStateError(`Phase 3 permits at most ${MAX_PHASE3_AGENTS} active agents.`);
+  if (snapshot.cards.length > MAX_AGENTS) throw new BackgroundAgentStateError(`Restore supports at most ${MAX_AGENTS} role states.`);
+  if (snapshot.safety.activeAgents > MAX_AGENTS) throw new BackgroundAgentStateError(`At most ${MAX_AGENTS} active agents are supported.`);
   return {
     schemaVersion: SCHEMA_VERSION,
     savedAt,
@@ -176,7 +179,7 @@ function validateIdentifier(value: string, name: string): string {
 }
 
 function validateRole(role: string): AgentRole {
-  if (role !== 'planner' && role !== 'coder' && role !== 'critic') throw new BackgroundAgentStateError('Only Phase 3 Planner/Coder/Critic roles can be restored.');
+  if (!isRoleAllowed(role, MAX_TIER)) throw new BackgroundAgentStateError(`Role "${role}" is not permitted at capability tier "${MAX_TIER}".`);
   return role;
 }
 

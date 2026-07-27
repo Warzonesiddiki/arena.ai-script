@@ -2,6 +2,7 @@ import { StorageLayer } from '../storage/storage-layer';
 import type { OrchestrationServiceSnapshot } from '../background/orchestration-service';
 import type { HealthSnapshot } from '../health/orchestration-health-monitor';
 import type { AgentRole, TaskStatus } from '../orchestration/types';
+import { isRoleAllowed, tierLimits, type CapabilityTier } from '../orchestration/capability-tier';
 
 const SCHEMA_VERSION = 1;
 const STORAGE_KEY = 'recovery:snapshots:v1';
@@ -10,7 +11,8 @@ const MAX_PLANS = 10;
 const MAX_GOAL_CHARS = 1_000;
 const MAX_TITLE_CHARS = 120;
 const MAX_REASON_CHARS = 300;
-const MAX_ROLES = 3;
+const MAX_TIER: CapabilityTier = 'phase6';
+const MAX_ROLES = tierLimits(MAX_TIER).maxConcurrentAgents;
 
 export type SnapshotTrigger = 'manual' | 'pre-approval' | 'post-transition' | 'health-degraded' | 'periodic';
 
@@ -310,7 +312,7 @@ function buildSnapshot(
   if (!orchestration.active || !orchestration.planId) throw new RecoveryPolicyError('Only an active workflow can be snapshotted.');
   validateIdentifier(orchestration.planId, 'planId');
   validateIdentifier(id, 'snapshotId');
-  if (orchestration.cards.length > MAX_ROLES) throw new RecoveryPolicyError(`Phase 5E snapshots support at most ${MAX_ROLES} role states.`);
+  if (orchestration.cards.length > MAX_ROLES) throw new RecoveryPolicyError(`Recovery snapshots support at most ${MAX_ROLES} role states.`);
   const snapshot: RecoverySnapshot = {
     schemaVersion: SCHEMA_VERSION,
     id,
@@ -460,7 +462,7 @@ function validateIdentifier(value: string, name: string): string {
 }
 
 function validateRole(role: string): AgentRole {
-  if (role !== 'planner' && role !== 'coder' && role !== 'critic') throw new RecoveryPolicyError('Only Phase 3 Planner/Coder/Critic roles can be snapshotted.');
+  if (!isRoleAllowed(role, MAX_TIER)) throw new RecoveryPolicyError(`Role "${role}" is not permitted at capability tier "${MAX_TIER}".`);
   return role;
 }
 

@@ -172,9 +172,11 @@ describe('HibernationManager', () => {
     await expect(manager.hibernate(state({ goal: '   ' }))).rejects.toBeInstanceOf(HibernationPolicyError);
     await expect(manager.hibernate(state({ savedAt: -1 }))).rejects.toBeInstanceOf(HibernationPolicyError);
     await expect(manager.hibernate(state({ estimatedCostUsd: -1 }))).rejects.toBeInstanceOf(HibernationPolicyError);
-    await expect(manager.hibernate(state({ roles: [role({ role: 'researcher' as never })] }))).rejects.toBeInstanceOf(HibernationPolicyError);
+    await expect(manager.hibernate(state({ roles: [role({ role: 'overlord' as never })] }))).rejects.toBeInstanceOf(HibernationPolicyError);
     await expect(manager.hibernate(state({ roles: [role({ status: 'bogus' as never })] }))).rejects.toBeInstanceOf(HibernationPolicyError);
-    await expect(manager.hibernate(state({ roles: [role(), role({ taskId: 'a' }), role({ taskId: 'b' }), role({ taskId: 'c' })] })))
+    // Phase 6 roles are accepted; six role states still exceed the 5-agent ceiling.
+    await expect(manager.hibernate(state({ roles: [role({ role: 'executor' })] }))).resolves.toEqual(expect.objectContaining({ planId: 'plan-1' }));
+    await expect(manager.hibernate(state({ roles: ['a', 'b', 'c', 'd', 'e', 'f'].map((taskId) => role({ taskId })) })))
       .rejects.toBeInstanceOf(HibernationPolicyError);
     await expect(manager.peek('../bad')).rejects.toBeInstanceOf(HibernationPolicyError);
   });

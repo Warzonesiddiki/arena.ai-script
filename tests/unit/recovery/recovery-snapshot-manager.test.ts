@@ -211,8 +211,10 @@ describe('RecoverySnapshotManager', () => {
       .rejects.toBeInstanceOf(RecoveryPolicyError);
     await expect(manager.capture(orchestration(), 'webhook' as never)).rejects.toBeInstanceOf(RecoveryPolicyError);
     await expect(manager.capture(orchestration({ planId: '../bad' }))).rejects.toBeInstanceOf(RecoveryPolicyError);
-    await expect(manager.capture(orchestration({ cards: [card({ role: 'researcher' as never })] }))).rejects.toBeInstanceOf(RecoveryPolicyError);
-    await expect(manager.capture(orchestration({ cards: [card(), card({ id: 'a' }), card({ id: 'b' }), card({ id: 'c' })] }))).rejects.toBeInstanceOf(RecoveryPolicyError);
+    await expect(manager.capture(orchestration({ cards: [card({ role: 'overlord' as never })] }))).rejects.toBeInstanceOf(RecoveryPolicyError);
+    // Phase 6 roles are accepted; six role states still exceed the 5-agent ceiling.
+    await expect(manager.capture(orchestration({ cards: [card({ role: 'researcher' })] }))).resolves.toEqual(expect.objectContaining({ planId: 'plan-1' }));
+    await expect(manager.capture(orchestration({ cards: ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => card({ id })) }))).rejects.toBeInstanceOf(RecoveryPolicyError);
     await expect(manager.get('../bad')).rejects.toBeInstanceOf(RecoveryPolicyError);
 
     let index = 0;

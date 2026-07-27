@@ -1,11 +1,13 @@
 import { StorageLayer } from '../storage/storage-layer';
 import type { BackgroundAgentControlState, BackgroundAgentRoleState } from '../background/background-agent-state';
 import type { AgentRole, TaskStatus } from '../orchestration/types';
+import { isRoleAllowed, tierLimits, type CapabilityTier } from '../orchestration/capability-tier';
 
 const SCHEMA_VERSION = 1;
 const STORAGE_KEY = 'hibernation:workflows:v1';
 const MAX_HIBERNATED_WORKFLOWS = 20;
-const DEFAULT_MAX_ROLES = 3;
+const MAX_TIER: CapabilityTier = 'phase6';
+const DEFAULT_MAX_ROLES = tierLimits(MAX_TIER).maxConcurrentAgents;
 const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1_000;
 const DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1_000;
 const MAX_GOAL_CHARS = 1_000;
@@ -369,7 +371,7 @@ function validateIdentifier(value: string, name: string): string {
 }
 
 function validateRole(role: string): AgentRole {
-  if (role !== 'planner' && role !== 'coder' && role !== 'critic') throw new HibernationPolicyError('Only Phase 3 Planner/Coder/Critic roles can be hibernated.');
+  if (!isRoleAllowed(role, MAX_TIER)) throw new HibernationPolicyError(`Role "${role}" is not permitted at capability tier "${MAX_TIER}".`);
   return role;
 }
 

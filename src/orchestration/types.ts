@@ -1,5 +1,10 @@
 export const PHASE3_ROLES = ['planner', 'coder', 'critic'] as const;
-export type AgentRole = typeof PHASE3_ROLES[number];
+
+/** Phase 6B adds Researcher and Executor on top of the Phase 3 roles. */
+export const PHASE6_ROLES = ['planner', 'researcher', 'coder', 'executor', 'critic'] as const;
+
+export type Phase3Role = typeof PHASE3_ROLES[number];
+export type AgentRole = typeof PHASE6_ROLES[number];
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'blocked';
 
 export interface PlanTask {
@@ -18,7 +23,8 @@ export interface AgentPlan {
   id: string;
   goal: string;
   createdAt: number;
-  maxConcurrentAgents: 3;
+  /** 3 at the `phase3` capability tier, 5 at `phase6`. */
+  maxConcurrentAgents: number;
   tasks: readonly PlanTask[];
 }
 

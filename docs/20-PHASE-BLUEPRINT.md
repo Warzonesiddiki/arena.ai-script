@@ -163,6 +163,14 @@
 
 **Goal**: Scale multi-agent capabilities with proper infrastructure.
 
+**Implementation status: Complete (2026-07-27).**
+- **6A:** `DeterministicAgentRouter` adds deterministic dispatch ordering and load balancing under a central capability-tier gate (`phase3` = 3 agents/12 handoffs, `phase6` = 5/20). Capability is opt-in and overrides may only tighten limits. Routing always reports `autoDispatch: false`.
+- **6B:** Researcher and Executor roles are available at the `phase6` tier via a fixed Planner → Researcher → Coder → Executor → Critic DAG.
+- **6C:** `ResultComparator` scores candidates on a fixed weighted rubric from human/tool-supplied signals, flags near-ties, and requires explicit human approval to select a winner (`autoSelected: false`).
+- **6D:** `AdvancedCostController` adds projections, burn rate, and alerting with an auto-stop *recommendation* only (`autoStopped: false`); the Phase 2E hard reservation gate remains the enforcement point.
+- **6E:** `TraceReplayBuilder` reconstructs ordered parent/child timelines with replay steps from existing tracer output, adding no new telemetry channel and re-redacting sensitive attributes on output.
+- **Implementation record:** [`PHASE-6-IMPLEMENTATION.md`](PHASE-6-IMPLEMENTATION.md).
+
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
 | **6A** | Enhanced Orchestrator | 5-agent support | Dynamic routing + load balancing | 3A, 5E | Stable coordination at scale |

@@ -73,8 +73,10 @@ describe('BackgroundAgentStateStore', () => {
 
   it('rejects unsafe or out-of-policy restore state', async () => {
     const store = new BackgroundAgentStateStore({ storage: storage(), now: () => 2_100_000_000_000 });
-    await expect(store.saveSnapshot(snapshot({ safety: { activeAgents: 4, handoffs: 0 } }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
-    await expect(store.saveSnapshot(snapshot({ cards: [...snapshot().cards, { ...snapshot().cards[0]!, id: 'extra-1' }] }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
+    // 5 agents is the phase6 ceiling, so 6 is the rejection boundary.
+    await expect(store.saveSnapshot(snapshot({ safety: { activeAgents: 6, handoffs: 0 } }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
+    const overCapacity = ['e1', 'e2', 'e3'].map((id) => ({ ...snapshot().cards[0]!, id }));
+    await expect(store.saveSnapshot(snapshot({ cards: [...snapshot().cards, ...overCapacity] }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
     await expect(store.saveSnapshot(snapshot({ planId: '../bad' }))).rejects.toBeInstanceOf(BackgroundAgentStateError);
   });
 

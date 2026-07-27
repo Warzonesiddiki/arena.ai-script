@@ -26,6 +26,7 @@ module.exports = {
     'src/hibernation/**/*.ts',
     'src/triggers/**/*.ts',
     'src/commands/**/*.ts',
+    'src/comparison/**/*.ts',
     'src/memory/**/*.ts',
     'src/orchestration/**/*.ts',
     '!src/core/diagnostics.ts',
