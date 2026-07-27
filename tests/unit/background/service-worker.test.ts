@@ -15,6 +15,7 @@ describe('Manifest V3 service worker', () => {
     expect(mock.installedListeners).toHaveLength(1);
     expect(mock.startupListeners).toHaveLength(1);
     expect(mock.messageListeners).toHaveLength(1);
+    expect(mock.alarmListeners).toHaveLength(1);
 
     mock.installedListeners[0]?.();
     await Promise.resolve();
@@ -58,6 +59,56 @@ describe('Manifest V3 service worker', () => {
       ok: true,
       status: expect.objectContaining({ version: '8.0.0', bridge: expect.objectContaining({ connected: false }) }),
     }));
+  });
+
+  it('validates orchestration create/status/approve messages from extension-owned pages', async () => {
+    const mock = installChromeMock('8.0.0');
+    await import('../../../src/background/service-worker');
+    const listener = mock.messageListeners[0];
+    if (!listener) throw new Error('worker listener was not registered');
+    const sender = { id: 'aamp-test-extension' } as chrome.runtime.MessageSender;
+    const respond = jest.fn();
+
+    listener({ type: 'aamp:orchestration:status' }, sender, respond);
+    listener({ type: 'aamp:orchestration:create', goal: 'Add Phase 3E tests' }, sender, respond);
+    listener({ type: 'aamp:orchestration:approve', taskId: 'planner-1' }, sender, respond);
+
+    expect(respond).toHaveBeenCalledTimes(3);
+    expect(respond.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ ok: true, orchestration: expect.objectContaining({ active: false }) }));
+    expect(respond.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ ok: true, orchestration: expect.objectContaining({ active: true, estimatedCostUsd: 0.4 }) }));
+    expect(respond.mock.calls[2]?.[0]).toEqual(expect.objectContaining({ ok: true, orchestration: expect.objectContaining({ active: true }) }));
+  });
+
+  it('rejects malformed orchestration messages without dispatching the service', async () => {
+    const mock = installChromeMock('8.0.0');
+    await import('../../../src/background/service-worker');
+    const listener = mock.messageListeners[0];
+    if (!listener) throw new Error('worker listener was not registered');
+    const sender = { id: 'aamp-test-extension' } as chrome.runtime.MessageSender;
+    const respond = jest.fn();
+
+    listener({ type: 'aamp:orchestration:create', goal: '' }, sender, respond);
+    listener({ type: 'aamp:orchestration:create', goal: 'ok', extra: true }, sender, respond);
+    listener({ type: 'aamp:orchestration:approve', taskId: '../coder-1' }, sender, respond);
+    listener({ type: 'aamp:orchestration:status', extra: true }, sender, respond);
+    listener({ type: 'aamp:orchestration:create', goal: 'ok' }, { id: 'other' } as chrome.runtime.MessageSender, respond);
+
+    expect(respond).not.toHaveBeenCalled();
+  });
+
+  it('returns a guarded orchestration error for invalid but well-formed approval order', async () => {
+    const mock = installChromeMock('8.0.0');
+    await import('../../../src/background/service-worker');
+    const listener = mock.messageListeners[0];
+    if (!listener) throw new Error('worker listener was not registered');
+    const sender = { id: 'aamp-test-extension' } as chrome.runtime.MessageSender;
+    const respond = jest.fn();
+
+    listener({ type: 'aamp:orchestration:create', goal: 'Add ordering checks' }, sender, respond);
+    listener({ type: 'aamp:orchestration:approve', taskId: 'coder-1' }, sender, respond);
+
+    expect(respond).toHaveBeenCalledTimes(2);
+    expect(respond.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ ok: false, error: expect.stringContaining('planner-1') }));
   });
 
   it('handles only a signed-bridge handshake from the extension content script', async () => {

@@ -22,12 +22,16 @@ export class DeterministicOrchestrator {
     if (!goal.trim()) throw new TypeError('A non-empty goal is required.');
     const tasks: PlanTask[] = [
       task('planner', 'Create implementation plan', `Decompose the approved goal into verifiable steps: ${goal}`, [], 0.05),
-      task('coder', 'Implement approved plan', `Implement the scoped changes for: ${goal}`, ['planner'], 0.25),
-      task('critic', 'Review implementation', `Review correctness, safety, and tests for: ${goal}`, ['coder'], 0.10),
+      task('coder', 'Implement approved plan', `Implement the scoped changes for: ${goal}`, ['planner-1'], 0.25),
+      task('critic', 'Review implementation', `Review correctness, safety, and tests for: ${goal}`, ['coder-1'], 0.10),
     ];
     tasks.forEach((item) => {
       const decision = this.options.costGovernance.reserve(workflowId, item.role, item.estimatedCostUsd);
-      if (!decision.allowed) item.status = 'blocked';
+      item.costReservationId = decision.reservationId;
+      if (!decision.allowed) {
+        item.status = 'blocked';
+        item.costBlockedReason = decision.reason === 'agent-budget-exceeded' ? 'agent-budget-exceeded' : 'workflow-budget-exceeded';
+      }
     });
     return { id: this.idFactory(), goal: goal.slice(0, 4_000), createdAt: this.now(), maxConcurrentAgents: 3, tasks };
   }

@@ -14,7 +14,7 @@
     "build:dev": "npm run clean && npm run typecheck && npm run bundle:dev && npm run copy:assets && npm run verify:extension",
     "watch": "npm run clean && npm run copy:assets && webpack --mode development --watch",
     "test:extension": "npm run build",
-    "test:legacy": "node --check arena-agent-mode-pro.user.js && node tests/smoke.js && node tests/regression-toolcall-loop.js && node tests/regression-pause-toggle.js",
+    "test:legacy": "node --check arena-agent-mode-pro.user.js && node tests/smoke.js && node tests/regression-toolcall-loop.js && node tests/regression-pause-toggle.js && node tests/regression-auto-continue-message.js && node tests/regression-auto-continue-keep-working.js && node tests/regression-v8-feedback-lab.js",
     "test": "npm run test:extension && npm run test:unit && npm run test:legacy",
     "test:unit": "jest --coverage --runInBand",
     "audit:runtime": "npm audit --omit=dev",

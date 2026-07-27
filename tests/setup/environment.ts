@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { webcrypto } from 'node:crypto';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { deserialize, serialize } from 'node:v8';

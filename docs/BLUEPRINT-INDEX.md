@@ -1,6 +1,6 @@
 # Arena Agent Mode Pro — Documentation Index
 
-**Last Updated**: 2026-07-26
+**Last Updated**: 2026-07-27
 
 This folder contains the complete planning and technical documentation for the project.
 
@@ -22,13 +22,21 @@ This folder contains the complete planning and technical documentation for the p
 | `PHASE-2C-IMPLEMENTATION.md` | Phase 2C grouped native-notification and verbosity record | ✅ Complete |
 | `PHASE-2E-IMPLEMENTATION.md` | Phase 2E deterministic cost-budget and reservation record | ✅ Complete |
 | `PHASE-2D-3D-IMPLEMENTATION.md` | Phase 2D modal consolidation and Phase 3A–3D controlled-orchestration record | ✅ Complete |
+| `PHASE-3E-IMPLEMENTATION.md` | Phase 3E approval-only multi-agent dashboard, lifecycle rules, message validation, and observability record | ✅ Complete |
+| `PHASE-4A-IMPLEMENTATION.md` | Phase 4A persistent, explicitly scoped Agent Memory Graph record | ✅ Complete |
+| `PHASE-4B-IMPLEMENTATION.md` | Phase 4B deterministic causal tracing debugger record | ✅ Complete |
+| `PHASE-4C-IMPLEMENTATION.md` | Phase 4C deterministic post-task reflection and approval-gated model/memory record | ✅ Complete |
+| `PHASE-4D-IMPLEMENTATION.md` | Phase 4D deterministic orchestration health monitoring record | ✅ Complete |
+| `PHASE-4E-IMPLEMENTATION.md` | Phase 4E deterministic bounded performance analytics record | ✅ Complete |
+| `PHASE-5A-IMPLEMENTATION.md` | Phase 5A durable background orchestration control-plane state restoration record | ✅ Complete |
+| `PHASE-5B-IMPLEMENTATION.md` | Phase 5B approval-gated deterministic schedule metadata and Chrome alarms record | ✅ Complete |
 
 ## Blueprint Summary
 
 - **Total Phases**: 20
 - **Total Subphases**: 100
-- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3D — Controlled Orchestration Foundation ✅
-- **Next Milestone**: Phase 3E — Multi-Agent UI
+- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3E — Controlled Light Multi-Agent Dashboard ✅; Phase 4A–4E — Intelligence Layer ✅; Phase 5A–5B — Persistence and Scheduling Foundation ✅
+- **Next Milestone**: Phase 5C — Triggered Agents
 - **Platform**: Chrome Browser Extension (Manifest V3)
 - **Key Focus Areas**:
   - Gradual Multi-Agent rollout (Phase 3 → Phase 6)

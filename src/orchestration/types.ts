@@ -10,6 +10,8 @@ export interface PlanTask {
   dependsOn: readonly string[];
   estimatedCostUsd: number;
   status: TaskStatus;
+  costReservationId?: string | null;
+  costBlockedReason?: 'workflow-budget-exceeded' | 'agent-budget-exceeded';
 }
 
 export interface AgentPlan {

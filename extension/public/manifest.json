@@ -6,6 +6,7 @@
   "version": "8.0.0",
   "minimum_chrome_version": "114",
   "permissions": [
+    "alarms",
     "notifications",
     "sidePanel",
     "storage"
