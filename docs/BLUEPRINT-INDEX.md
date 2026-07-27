@@ -36,6 +36,7 @@ This folder contains the complete planning and technical documentation for the p
 | `PHASE-7-SECURITY-DESIGN.md` | Phase 7 egress-policy prerequisite and the outstanding security work blocking integrations | ⛔ Integrations deliberately not implemented |
 | `PHASE-8-14-IMPLEMENTATION.md` | Phase 8C timeline scrubber, 8E focus mode, and Phase 14 agent-behavior harness record | ✅ Complete (8A/8B/8D blocked) |
 | `PHASE-10-11-IMPLEMENTATION.md` | Phase 10 tamper-evident audit log and Phase 11 risk/policy engine record | ✅ Complete (SSO/reporting blocked) |
+| `INTEGRATION-WIRING.md` | Import-graph audit that found 15 unreachable modules, the wiring that fixed it, and the reachability regression guard | ✅ Complete |
 
 ## Blueprint Summary
 

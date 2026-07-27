@@ -2,6 +2,17 @@ import { BridgeMessageType } from '../../../src/bridge/protocol';
 import { installChromeMock } from '../../support/chrome-mock';
 import { installWebCrypto } from '../../support/webcrypto';
 
+/**
+ * Drains pending work so async message handlers can settle. The orchestration
+ * path now touches IndexedDB (audit + durable state), which needs real macrotask
+ * ticks, not just microtasks.
+ */
+async function flush(iterations = 12): Promise<void> {
+  for (let index = 0; index < iterations; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
 describe('Manifest V3 service worker', () => {
   beforeAll(installWebCrypto);
   beforeEach(() => {
@@ -69,9 +80,14 @@ describe('Manifest V3 service worker', () => {
     const sender = { id: 'aamp-test-extension' } as chrome.runtime.MessageSender;
     const respond = jest.fn();
 
+    // The orchestration path is asynchronous: it now runs a policy check and
+    // writes an audit record before responding.
     listener({ type: 'aamp:orchestration:status' }, sender, respond);
+    await flush();
     listener({ type: 'aamp:orchestration:create', goal: 'Add Phase 3E tests' }, sender, respond);
+    await flush();
     listener({ type: 'aamp:orchestration:approve', taskId: 'planner-1' }, sender, respond);
+    await flush();
 
     expect(respond).toHaveBeenCalledTimes(3);
     expect(respond.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ ok: true, orchestration: expect.objectContaining({ active: false }) }));
@@ -92,6 +108,7 @@ describe('Manifest V3 service worker', () => {
     listener({ type: 'aamp:orchestration:approve', taskId: '../coder-1' }, sender, respond);
     listener({ type: 'aamp:orchestration:status', extra: true }, sender, respond);
     listener({ type: 'aamp:orchestration:create', goal: 'ok' }, { id: 'other' } as chrome.runtime.MessageSender, respond);
+    await flush();
 
     expect(respond).not.toHaveBeenCalled();
   });
@@ -105,7 +122,9 @@ describe('Manifest V3 service worker', () => {
     const respond = jest.fn();
 
     listener({ type: 'aamp:orchestration:create', goal: 'Add ordering checks' }, sender, respond);
+    await flush();
     listener({ type: 'aamp:orchestration:approve', taskId: 'coder-1' }, sender, respond);
+    await flush();
 
     expect(respond).toHaveBeenCalledTimes(2);
     expect(respond.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ ok: false, error: expect.stringContaining('planner-1') }));
@@ -143,6 +162,29 @@ describe('Manifest V3 service worker', () => {
     await Promise.resolve();
 
     expect(mock.createAlarm).not.toHaveBeenCalled();
+  });
+
+  it('returns a bounded read-only insight snapshot that actions nothing', async () => {
+    const mock = installChromeMock('8.0.0');
+    await import('../../../src/background/service-worker');
+    const listener = mock.messageListeners[0];
+    if (!listener) throw new Error('worker listener was not registered');
+    const sender = { id: 'aamp-test-extension' } as chrome.runtime.MessageSender;
+    const respond = jest.fn();
+
+    listener({ type: 'aamp:orchestration:create', goal: 'Review insight wiring' }, sender, respond);
+    await flush();
+    listener({ type: 'aamp:orchestration:insights' }, sender, respond);
+    await flush();
+
+    const insightResponse = respond.mock.calls[1]?.[0] as { ok: boolean; insights?: Record<string, unknown> };
+    expect(insightResponse.ok).toBe(true);
+    expect(insightResponse.insights).toEqual(expect.objectContaining({
+      autoActioned: false,
+      focus: expect.objectContaining({ headline: expect.any(String) }),
+      health: expect.objectContaining({ status: expect.any(String) }),
+      recovery: expect.objectContaining({ autoExecutable: false }),
+    }));
   });
 
   it('runs the startup lifecycle callback without retaining state', async () => {

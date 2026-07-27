@@ -38,6 +38,7 @@ These are enforced in code and asserted in tests, not merely documented:
 - **Least privilege.** The manifest grants `alarms`, `notifications`, `sidePanel`, `storage`, and Arena hosts only — nothing else, verified by a manifest test.
 - **Bounded, redacted telemetry.** Traces hold primitives only; replay re-redacts sensitive keys on output.
 - **No page-facing command channel.** The Content Bridge is HMAC-signed, replay-protected, and accepts no `window.postMessage`.
+- **No dead code.** A reachability test walks the real import graph from every entry point and fails if a module ships untested-in-practice, so a "complete" phase is actually running.
 
 ## Development
 

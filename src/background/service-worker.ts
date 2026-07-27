@@ -1,6 +1,8 @@
 import { BridgeSessionManager } from '../bridge/session-manager';
 import { RuntimeStatusStore } from './runtime-status';
 import { OrchestrationService } from './orchestration-service';
+import { GovernedOrchestration } from './governed-orchestration';
+import { InsightService } from './insight-service';
 import { isOrchestrationRequest } from './orchestration-messages';
 import { ScheduledAgentManager } from '../scheduling/schedule-manager';
 import { TriggerManager } from '../triggers/trigger-manager';
@@ -44,6 +46,11 @@ const workerRecovery = new ErrorRecoveryManager({
   },
 });
 workerRecovery.installGlobalHandlers(globalThis);
+const governedOrchestration = new GovernedOrchestration({
+  orchestration,
+  onPersistError: (scope, error) => workerRecovery.captureGlobal(scope, error),
+});
+const insights = new InsightService({ tracer: workerTracer });
 const bridgeSessions = new BridgeSessionManager({
   runtimeId: chrome.runtime.id,
   onAcceptedEvent: (envelope) => runtimeStatus.recordBridgeEvent(envelope),
@@ -71,7 +78,11 @@ chrome.runtime.onInstalled.addListener(() => {
     .catch((error: unknown) => workerRecovery.captureGlobal('sidePanel.configure', error));
 });
 
-chrome.runtime.onStartup.addListener(() => logLifecycle('browser startup'));
+chrome.runtime.onStartup.addListener(() => {
+  logLifecycle('browser startup');
+  // Phase 5A: restore bounded control-plane visibility after a suspension.
+  void governedOrchestration.restore().catch((error: unknown) => workerRecovery.captureGlobal('orchestration.restore', error));
+});
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   void scheduledAgents.handleAlarm(alarm.name)
@@ -102,17 +113,26 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   }
 
   if (isOrchestrationRequest(message)) {
-    try {
-      const orchestrationSnapshot = message.type === 'aamp:orchestration:create'
-        ? orchestration.create(message.goal)
-        : message.type === 'aamp:orchestration:approve'
-          ? orchestration.approve(message.taskId)
-          : orchestration.snapshot();
-      sendResponse({ ok: true, orchestration: orchestrationSnapshot });
-    } catch (error) {
-      sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Orchestration request failed.' });
-    }
-    return;
+    // Every create/approve now passes the Phase 11 policy gate and leaves a
+    // Phase 10 audit record, then persists Phase 5A durable control state.
+    const request = message;
+    void (async (): Promise<void> => {
+      if (request.type === 'aamp:orchestration:insights') {
+        const snapshot = orchestration.snapshot(false);
+        sendResponse({ ok: true, insights: await insights.build(snapshot) });
+        return;
+      }
+      const result = request.type === 'aamp:orchestration:create'
+        ? await governedOrchestration.create(request.goal)
+        : request.type === 'aamp:orchestration:approve'
+          ? await governedOrchestration.approve(request.taskId)
+          : governedOrchestration.status();
+      sendResponse(result);
+    })().catch((error: unknown) => {
+      workerRecovery.captureGlobal('orchestration.request', error);
+      sendResponse({ ok: false, error: 'Orchestration request failed.' });
+    });
+    return true;
   }
 
   if (isRuntimeStatusRequest(message)) {
