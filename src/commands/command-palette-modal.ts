@@ -9,9 +9,9 @@ export function openCommandPalette(
 ): HTMLElement {
   const index = new CommandIndex({ memoryGraph });
   commands.forEach((command) => index.register(command));
-  const modal = buildModal('aamp-command-palette', 'Command Palette', '<div class="aamp-command-palette-content"></div>', { document: documentRef, width: '680px' });
-  const container = modal.querySelector('.aamp-command-palette-content');
-  if (!container) throw new Error('Command palette modal did not render.');
+  const container = documentRef.createElement('div');
+  container.className = 'aamp-command-palette-content';
+  const modal = buildModal('aamp-command-palette', 'Command Palette', container, { document: documentRef, width: '680px' });
 
   const input = documentRef.createElement('input');
   input.type = 'search';

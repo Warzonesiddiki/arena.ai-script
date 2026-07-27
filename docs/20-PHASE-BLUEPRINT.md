@@ -183,6 +183,12 @@
 
 ### PHASE 7: DEEP INTEGRATIONS
 
+**Implementation status: NOT IMPLEMENTED (deliberately blocked).**
+
+Every 7A–7E item requires new third-party host permissions, OAuth secrets at rest, outbound network egress, or local file access. None of those has an approved key-management design, permission request, or adversarial test suite yet, so shipping them would violate the project's standing security rules.
+
+What exists instead is the **prerequisite gate**: `src/integrations/egress-policy.ts` is a deny-by-default, adversarially-tested egress policy that performs **no network I/O** and grants no permission. Any future integration must pass through it. See [`PHASE-7-SECURITY-DESIGN.md`](PHASE-7-SECURITY-DESIGN.md) for the seven items still outstanding.
+
 | Subphase | Focus | Deliverables | Dependencies | Success Criteria |
 |---------|-------|--------------|--------------|------------------|
 | **7A** | GitHub Integration | PR creation, reviews, issues | 6E | Full repository workflow support |

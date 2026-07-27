@@ -19,6 +19,7 @@ module.exports = {
     'src/reliability/**/*.ts',
     'src/governance/**/*.ts',
     'src/health/**/*.ts',
+    'src/integrations/**/*.ts',
     'src/notifications/**/*.ts',
     'src/recovery/**/*.ts',
     'src/reflection/**/*.ts',

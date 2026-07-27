@@ -1,8 +1,11 @@
+/** Body/footer content: a DOM node, a list of nodes, or plain text. Never an HTML string. */
+export type ModalContent = Node | readonly Node[] | string;
+
 export interface ModalOptions {
   className?: string;
   style?: string;
   width?: string;
-  footer?: string;
+  footer?: ModalContent;
   closeOnBackdrop?: boolean;
   document?: Document;
 }
@@ -10,11 +13,12 @@ export interface ModalOptions {
 /**
  * Shared modal template ported from v7.2.
  *
- * `bodyHTML` and `footer` are reserved for extension-owned template strings.
- * Never pass Arena/page-derived data into them; use DOM nodes and `textContent`
- * at the call site for untrusted text.
+ * There is deliberately **no HTML-string sink here**. Body and footer content
+ * are appended as DOM nodes, and a plain string is inserted via `textContent`,
+ * so Arena/page-derived text can never become markup. Build structure with
+ * `document.createElement` at the call site.
  */
-export function buildModal(id: string, title: string, bodyHTML: string, options: ModalOptions = {}): HTMLElement {
+export function buildModal(id: string, title: string, body: ModalContent, options: ModalOptions = {}): HTMLElement {
   const documentRef = options.document ?? document;
   const existing = documentRef.getElementById(id);
   existing?.remove();
@@ -64,19 +68,19 @@ export function buildModal(id: string, title: string, bodyHTML: string, options:
   closeButton.style.cssText = 'background:none;border:none;color:var(--aamp-text2);cursor:pointer;font-size:18px;';
   closeButton.textContent = '✕';
 
-  const body = documentRef.createElement('div');
-  body.className = 'aamp-modal-body';
-  body.style.cssText = 'flex:1;overflow-y:auto;padding:20px;';
-  body.innerHTML = bodyHTML;
+  const bodyElement = documentRef.createElement('div');
+  bodyElement.className = 'aamp-modal-body';
+  bodyElement.style.cssText = 'flex:1;overflow-y:auto;padding:20px;';
+  appendContent(bodyElement, body);
 
   header.append(heading, closeButton);
-  panel.append(header, body);
+  panel.append(header, bodyElement);
 
   if (options.footer !== undefined) {
     const footer = documentRef.createElement('div');
     footer.className = 'aamp-modal-footer';
     footer.style.cssText = 'padding:12px 20px;border-top:1px solid var(--aamp-border);background:var(--aamp-surface2);flex-shrink:0;';
-    footer.innerHTML = options.footer;
+    appendContent(footer, options.footer);
     panel.append(footer);
   }
 
@@ -88,4 +92,13 @@ export function buildModal(id: string, title: string, bodyHTML: string, options:
   closeButton.addEventListener('click', close);
 
   return modal;
+}
+
+/** Appends content safely: strings become text, never markup. */
+function appendContent(target: HTMLElement, content: ModalContent): void {
+  if (typeof content === 'string') {
+    target.textContent = content;
+    return;
+  }
+  target.append(...(Array.isArray(content) ? content : [content as Node]));
 }

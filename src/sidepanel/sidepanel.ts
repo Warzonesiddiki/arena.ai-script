@@ -30,7 +30,9 @@ commandButton?.addEventListener('click', () => {
     { id: 'settings.open', title: 'Open settings', description: 'Configure extension preferences', category: 'Extension', keywords: ['preferences'] },
   ], (commandId) => {
     if (commandId === 'status.refresh') void refreshStatus();
-    if (commandId === 'settings.open') window.open('../options/options.html', '_blank', 'noopener');
+    // Use the dedicated options API rather than window.open: it cannot be
+    // pointed at an arbitrary URL and needs no tab-creation capability.
+    if (commandId === 'settings.open') void chrome.runtime.openOptionsPage();
   });
 });
 ticks.register('sidepanel-status', () => { void refreshStatus(); }, 1_000);
