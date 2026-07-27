@@ -31,13 +31,14 @@ This folder contains the complete planning and technical documentation for the p
 | `PHASE-5A-IMPLEMENTATION.md` | Phase 5A durable background orchestration control-plane state restoration record | ✅ Complete |
 | `PHASE-5B-IMPLEMENTATION.md` | Phase 5B approval-gated deterministic schedule metadata and Chrome alarms record | ✅ Complete |
 | `PHASE-5C-IMPLEMENTATION.md` | Phase 5C approval-gated internal-only triggered-agent metadata and due-run record | ✅ Complete |
+| `PHASE-5D-5E-IMPLEMENTATION.md` | Phase 5D compressed hibernation and Phase 5E deterministic recovery-snapshot record | ✅ Complete |
 
 ## Blueprint Summary
 
 - **Total Phases**: 20
 - **Total Subphases**: 100
-- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3E — Controlled Light Multi-Agent Dashboard ✅; Phase 4A–4E — Intelligence Layer ✅; Phase 5A–5C — Persistence, Scheduling, and Internal Triggers ✅
-- **Next Milestone**: Phase 5D — Hibernation
+- **Completed Milestones**: Phase 0A–0E — Extension Foundation ✅; Phase 1A–1E — Stability & Observability ✅; Phase 2A–2E — UX & Cost Foundation ✅; Phase 3A–3E — Controlled Light Multi-Agent Dashboard ✅; Phase 4A–4E — Intelligence Layer ✅; Phase 5A–5E — Persistence, Scheduling, Triggers, Hibernation, and Recovery ✅
+- **Next Milestone**: Phase 6A — Enhanced Orchestrator
 - **Platform**: Chrome Browser Extension (Manifest V3)
 - **Key Focus Areas**:
   - Gradual Multi-Agent rollout (Phase 3 → Phase 6)

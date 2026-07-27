@@ -145,15 +145,17 @@
 - **5A: Complete (2026-07-27).** A durable `BackgroundAgentStateStore` now persists and restores bounded Phase 3 orchestration control-plane state through the existing compressed IndexedDB storage layer so MV3 worker suspension or tab closure does not erase dashboard visibility. It stores no prompts/conversations/context and cannot launch tabs, invoke models, execute tools, or mutate pages.
 - **5B: Complete (2026-07-27).** A deterministic `ScheduledAgentManager` now stores approval-gated one-time, interval, daily, and weekly schedule metadata, registers Chrome alarms, and converts fired alarms into approval-required due runs only. It performs no automatic execution and cannot launch tabs, invoke models, execute tools, or mutate Arena content.
 - **5C: Complete (2026-07-27).** A deterministic `TriggerManager` now stores approval-gated **internal-only** trigger metadata (health-status change, schedule due run created, memory candidate created, and manual) and converts matching internal events into approval-required due runs only. Webhook, network, and file-change sources from the original 5C row are intentionally deferred: each needs a matching permission request, threat model, and adversarial tests. No new browser permission was added.
-- **Implementation records:** [`PHASE-5A-IMPLEMENTATION.md`](PHASE-5A-IMPLEMENTATION.md), [`PHASE-5B-IMPLEMENTATION.md`](PHASE-5B-IMPLEMENTATION.md), and [`PHASE-5C-IMPLEMENTATION.md`](PHASE-5C-IMPLEMENTATION.md).
+- **5D: Complete (2026-07-27).** A deterministic `HibernationManager` compresses long-idle control-plane state into a minimal, digest-verified record (dropping derived presentation fields, which are recomputed on resume) and restores it only with explicit human approval.
+- **5E: Complete (2026-07-27).** A deterministic `RecoverySnapshotManager` captures bounded, integrity-checked control-plane snapshots in a per-plan ring buffer and derives an approval-gated recovery proposal. It never restores automatically and always reports `autoExecutable: false`.
+- **Implementation records:** [`PHASE-5A-IMPLEMENTATION.md`](PHASE-5A-IMPLEMENTATION.md), [`PHASE-5B-IMPLEMENTATION.md`](PHASE-5B-IMPLEMENTATION.md), [`PHASE-5C-IMPLEMENTATION.md`](PHASE-5C-IMPLEMENTATION.md), and [`PHASE-5D-5E-IMPLEMENTATION.md`](PHASE-5D-5E-IMPLEMENTATION.md).
 
 | Subphase | Focus | Deliverables | Technical Details | Dependencies | Success Criteria |
 |---------|-------|--------------|-------------------|--------------|------------------|
 | **5A** | Background Agents | Tab-independent execution | Service worker + state restoration | 4A | Agents survive tab close |
 | **5B** | Scheduled Agents | Cron-style execution | `chrome.alarms` + complex scheduling rules | 5A | Reliable daily/weekly execution |
 | **5C** | Triggered Agents | Event-based activation | Internal event sources only (webhook/file deferred pending a security design) | 5A | Reacts to internal events with approval-required due runs |
-| **5D** | Hibernation | Smart compression | Resume on demand | 5A | Resource efficient long-running agents |
-| **5E** | Recovery v2 | Snapshot system | Intelligent resume with context | 4D | 99%+ recovery success rate |
+| **5D** | Hibernation | Smart compression | Approval-gated resume on demand | 5A | Resource efficient long-running agents |
+| **5E** | Recovery v2 | Snapshot system | Deterministic approval-gated recovery proposals | 4D | Reliable, reviewable recovery |
 
 ---
 
