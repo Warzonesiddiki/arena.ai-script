@@ -87,4 +87,113 @@ describe('BridgeSessionManager', () => {
     await expect(manager.sendCommand(handshake.sessionId, 'overlay.removeStatus', {}))
       .resolves.toEqual({ ok: false, code: 'invalid-message' });
   });
+  it('ignores traffic from any extension id other than its own', async () => {
+    const manager = new BridgeSessionManager({ runtimeId: 'aamp-extension', now: () => 10_000 });
+
+    // A different extension must not be able to open a session at all.
+    await expect(manager.handleMessage(
+      { type: BridgeMessageType.handshake, protocol: 1 },
+      { ...sender, id: 'some-other-extension' } as chrome.runtime.MessageSender,
+    )).resolves.toBeNull();
+    expect(manager.sessionCount()).toBe(0);
+  });
+
+  it('returns null for message shapes it does not recognise', async () => {
+    const manager = new BridgeSessionManager({ runtimeId: 'aamp-extension', now: () => 10_000 });
+
+    await expect(manager.handleMessage({ type: 'aamp:unknown' }, sender)).resolves.toBeNull();
+    await expect(manager.handleMessage(null, sender)).resolves.toBeNull();
+    await expect(manager.handleMessage({ type: BridgeMessageType.event }, sender)).resolves.toBeNull();
+  });
+
+  it('rejects an expired envelope even when its signature is valid', async () => {
+    let clock = 10_000;
+    const manager = new BridgeSessionManager({ runtimeId: 'aamp-extension', now: () => clock });
+    const handshake = await manager.handleMessage({ type: BridgeMessageType.handshake, protocol: 1 }, sender);
+    if (!isHandshakeResponse(handshake)) throw new Error('expected handshake');
+
+    const envelope = await signEnvelope(
+      createEnvelope(handshake.sessionId, 'content-to-worker', 'page.snapshot', {}, clock),
+      handshake.secret,
+    );
+
+    // A correctly signed message is still refused once it is stale.
+    clock += 10 * 60 * 1_000;
+    await expect(manager.handleMessage({ type: BridgeMessageType.event, envelope }, sender))
+      .resolves.toEqual(expect.objectContaining({ ok: false, code: 'expired-message' }));
+  });
+
+  it('rejects an envelope whose session id does not exist', async () => {
+    const manager = new BridgeSessionManager({ runtimeId: 'aamp-extension', now: () => 10_000 });
+    const handshake = await manager.handleMessage({ type: BridgeMessageType.handshake, protocol: 1 }, sender);
+    if (!isHandshakeResponse(handshake)) throw new Error('expected handshake');
+
+    const envelope = await signEnvelope(
+      createEnvelope('A'.repeat(24), 'content-to-worker', 'page.snapshot', {}, 10_000),
+      handshake.secret,
+    );
+
+    await expect(manager.handleMessage({ type: BridgeMessageType.event, envelope }, sender))
+      .resolves.toEqual(expect.objectContaining({ ok: false }));
+  });
+
+  it('refuses to send a command for an unknown session', async () => {
+    const manager = new BridgeSessionManager({ runtimeId: 'aamp-extension', now: () => 10_000 });
+
+    await expect(manager.sendCommand('A'.repeat(24), 'page.snapshot', {}))
+      .resolves.toEqual(expect.objectContaining({ ok: false }));
+  });
+
+  it('fails closed when the content script throws instead of responding', async () => {
+    const manager = new BridgeSessionManager({
+      runtimeId: 'aamp-extension',
+      now: () => 10_000,
+      sendToTab: async () => { throw new Error('tab is gone'); },
+    });
+    const handshake = await manager.handleMessage({ type: BridgeMessageType.handshake, protocol: 1 }, sender);
+    if (!isHandshakeResponse(handshake)) throw new Error('expected handshake');
+
+    // A dead tab must produce a failure, never an unhandled rejection.
+    await expect(manager.sendCommand(handshake.sessionId, 'page.snapshot', {}))
+      .resolves.toEqual(expect.objectContaining({ ok: false, code: 'operation-failed' }));
+  });
+
+  it('rejects a command result signed for a different operation', async () => {
+    let secret = '';
+    const manager = new BridgeSessionManager({
+      runtimeId: 'aamp-extension',
+      now: () => 10_000,
+      sendToTab: async (_tabId, message) => {
+        const command = message as BridgeCommandMessage;
+        // Answer a page.snapshot request with a result for a different operation.
+        const envelope = await signEnvelope(
+          createEnvelope(command.envelope.sessionId, 'content-to-worker', 'overlay.removeStatus', {}, 10_000),
+          secret,
+        );
+        return { ok: true, envelope };
+      },
+    });
+    const handshake = await manager.handleMessage({ type: BridgeMessageType.handshake, protocol: 1 }, sender);
+    if (!isHandshakeResponse(handshake)) throw new Error('expected handshake');
+    secret = handshake.secret;
+
+    await expect(manager.sendCommand(handshake.sessionId, 'page.snapshot', {}))
+      .resolves.toEqual(expect.objectContaining({ ok: false, code: 'invalid-session' }));
+  });
+
+  it('rejects a non-https or non-Arena origin', async () => {
+    const manager = new BridgeSessionManager({ runtimeId: 'aamp-extension', now: () => 10_000 });
+
+    for (const url of ['http://arena.ai/x', 'https://arena.ai.evil.com/x', 'https://notarena.ai/x', 'not-a-url']) {
+      await expect(manager.handleMessage(
+        { type: BridgeMessageType.handshake, protocol: 1 },
+        { ...sender, url } as chrome.runtime.MessageSender,
+      )).resolves.toEqual(expect.objectContaining({ ok: false }));
+    }
+    // A legitimate Arena subdomain is still accepted.
+    await expect(manager.handleMessage(
+      { type: BridgeMessageType.handshake, protocol: 1 },
+      { ...sender, url: 'https://app.arena.ai/agent' } as chrome.runtime.MessageSender,
+    )).resolves.toEqual(expect.objectContaining({ ok: true }));
+  });
 });
