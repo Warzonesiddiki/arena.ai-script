@@ -17,6 +17,7 @@ export interface ChromeMock {
   readonly createAlarm: jest.Mock<void, [string, chrome.alarms.AlarmCreateInfo]>;
   readonly clearAlarm: jest.Mock<Promise<boolean>, [string]>;
   readonly openOptionsPage: jest.Mock<Promise<void>, []>;
+  readonly createNotification: jest.Mock<Promise<string>, [string, chrome.notifications.NotificationOptions]>;
   /** In-memory chrome.storage.local backing store. */
   readonly storageValues: Map<string, unknown>;
 }
@@ -35,6 +36,7 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
   const createAlarm = jest.fn<void, [string, chrome.alarms.AlarmCreateInfo]>();
   const clearAlarm = jest.fn<Promise<boolean>, [string]>().mockResolvedValue(true);
   const openOptionsPage = jest.fn<Promise<void>, []>().mockResolvedValue();
+  const createNotification = jest.fn<Promise<string>, [string, chrome.notifications.NotificationOptions]>().mockResolvedValue('notification-1');
   const storageValues = new Map<string, unknown>();
 
   const mock = {
@@ -69,6 +71,8 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
       },
     },
     sidePanel: { setPanelBehavior },
+    // The worker routes recovery failures through native notifications.
+    notifications: { create: createNotification },
     tabs: { sendMessage: sendTabMessage },
     alarms: {
       create: createAlarm,
@@ -94,6 +98,7 @@ export function installChromeMock(version = '8.0.0'): ChromeMock {
     createAlarm,
     clearAlarm,
     openOptionsPage,
+    createNotification,
     storageValues,
   };
 }
